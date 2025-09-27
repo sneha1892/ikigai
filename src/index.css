@@ -1,0 +1,28 @@
+/* Legacy CSS file - migrating to unified design system */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Reset handled by globals.css */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Full viewport height setup */
+html, body, #root {
+  height: 100vh;
+  width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Body styling now handled by ThemeContext and globals.css */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', Inter, system-ui, sans-serif;
+  /* Background and color are now controlled by theme system in globals.css */
+  line-height: 1.5;
+}
+
+/* Legacy Material Design shadows - will be replaced by design system */
+.elevation-1 { box-shadow: 0 1px 3px rgba(255,255,255,0.12); }
+.elevation-2 { box-shadow: 0 2px 6px rgba(255,255,255,0.15); }
+.elevation-3 { box-shadow: 0 4px 12px rgba(255,255,255,0.15); }

@@ -1,0 +1,358 @@
+/* 
+ * Global CSS with Design System Variables
+ * This file provides CSS custom properties that are automatically updated by the ThemeContext
+ * Existing components can gradually migrate to use these variables
+ */
+
+/* Import fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Reset and base styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', Inter, system-ui, sans-serif;
+  line-height: 1.5;
+  background-color: var(--bg-background, #0F0F0F);
+  color: var(--text-primary, #FFFFFF);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Design System CSS Variables - Updated by ThemeContext */
+:root {
+  /* Colors are dynamically set by ThemeContext */
+  
+  /* Spacing */
+  --spacing-0: 0px;
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-7: 28px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+  --spacing-20: 80px;
+  --spacing-24: 96px;
+  --spacing-32: 128px;
+  
+  /* Border radius */
+  --radius-none: 0px;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 32px;
+  --radius-full: 9999px;
+  
+  /* Typography */
+  --font-system: -apple-system, BlinkMacSystemFont, 'SF Pro Display', Inter, system-ui, sans-serif;
+  --font-mono: 'SF Mono', Monaco, Consolas, monospace;
+  
+  /* Font weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* Animations */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 350ms;
+  --duration-slower: 500ms;
+  
+  --easing-default: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --easing-in: cubic-bezier(0.4, 0.0, 1, 1);
+  --easing-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+  --easing-in-out: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --easing-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  
+  /* Component heights */
+  --button-height-sm: 32px;
+  --button-height-md: 40px;
+  --button-height-lg: 48px;
+  --button-height-xl: 56px;
+  
+  --input-height-sm: 36px;
+  --input-height-md: 44px;
+  --input-height-lg: 52px;
+  
+  /* Pillar colors - consistent across themes */
+  --color-mental: #7DD3FC;
+  --color-physical: #86EFAC;
+  --color-social: #FDBA74;
+  --color-intellectual: #C4B5FD;
+  --color-accent: #10B981;
+}
+
+/* Light theme specific shadows */
+.light {
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Dark theme specific shadows */
+.dark {
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* Utility classes for easy migration */
+.bg-background { background-color: var(--bg-background); }
+.bg-surface { background-color: var(--bg-surface); }
+.bg-surface-elevated { background-color: var(--bg-surface-elevated); }
+.bg-surface-variant { background-color: var(--bg-surface-variant); }
+
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-tertiary { color: var(--text-tertiary); }
+.text-quaternary { color: var(--text-quaternary); }
+.text-accent { color: var(--text-accent); }
+
+.border-default { border-color: var(--border-default); }
+.border-subtle { border-color: var(--border-subtle); }
+
+/* Interactive states */
+.hover\:bg-hover:hover { background-color: var(--bg-hover); }
+.hover\:bg-pressed:active { background-color: var(--bg-pressed); }
+.focus\:bg-selected:focus { background-color: var(--bg-selected); }
+
+/* Typography scale classes */
+.text-large-title {
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.5px;
+}
+
+.text-title-1 {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.3px;
+}
+
+.text-title-2 {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.2px;
+}
+
+.text-title-3 {
+  font-size: 20px;
+  line-height: 25px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.1px;
+}
+
+.text-headline {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.1px;
+}
+
+.text-body {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: var(--font-weight-regular);
+}
+
+.text-body-emphasized {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.text-callout {
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: var(--font-weight-regular);
+}
+
+.text-callout-emphasized {
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.text-subheadline {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: var(--font-weight-regular);
+}
+
+.text-subheadline-emphasized {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.text-footnote {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--font-weight-regular);
+}
+
+.text-footnote-emphasized {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.text-caption-1 {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--font-weight-regular);
+}
+
+.text-caption-2 {
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: var(--font-weight-regular);
+}
+
+/* Animation utilities */
+.transition-fast { transition: all var(--duration-fast) var(--easing-default); }
+.transition-normal { transition: all var(--duration-normal) var(--easing-default); }
+.transition-slow { transition: all var(--duration-slow) var(--easing-default); }
+
+/* Shadow utilities */
+.shadow-sm { box-shadow: var(--shadow-sm); }
+.shadow-md { box-shadow: var(--shadow-md); }
+.shadow-lg { box-shadow: var(--shadow-lg); }
+.shadow-xl { box-shadow: var(--shadow-xl); }
+.shadow-2xl { box-shadow: var(--shadow-2xl); }
+
+/* Border radius utilities */
+.rounded-none { border-radius: var(--radius-none); }
+.rounded-xs { border-radius: var(--radius-xs); }
+.rounded-sm { border-radius: var(--radius-sm); }
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+.rounded-xl { border-radius: var(--radius-xl); }
+.rounded-2xl { border-radius: var(--radius-2xl); }
+.rounded-3xl { border-radius: var(--radius-3xl); }
+.rounded-full { border-radius: var(--radius-full); }
+
+/* Spacing utilities */
+.p-0 { padding: var(--spacing-0); }
+.p-1 { padding: var(--spacing-1); }
+.p-2 { padding: var(--spacing-2); }
+.p-3 { padding: var(--spacing-3); }
+.p-4 { padding: var(--spacing-4); }
+.p-5 { padding: var(--spacing-5); }
+.p-6 { padding: var(--spacing-6); }
+.p-8 { padding: var(--spacing-8); }
+
+.m-0 { margin: var(--spacing-0); }
+.m-1 { margin: var(--spacing-1); }
+.m-2 { margin: var(--spacing-2); }
+.m-3 { margin: var(--spacing-3); }
+.m-4 { margin: var(--spacing-4); }
+.m-5 { margin: var(--spacing-5); }
+.m-6 { margin: var(--spacing-6); }
+.m-8 { margin: var(--spacing-8); }
+
+/* Layout utilities */
+.container {
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-4);
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Selection styles */
+::selection {
+  background-color: var(--color-accent);
+  color: var(--text-primary);
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Print styles */
+@media print {
+  * {
+    background: transparent !important;
+    color: black !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Hide scrollbars but keep scrolling (cross-browser) */
+.scrollbar-hidden {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+.scrollbar-hidden::-webkit-scrollbar { /* Chrome, Safari, Edge (Chromium) */
+  width: 0;
+  height: 0;
+}
+/* Global scrollbar hide on document */
+html, body, #root {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+#root::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+}
+/* Ensure any scrollable element hides track/thumb */
+*::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+*::-webkit-scrollbar-thumb {
+  background: transparent !important;
+}
+*::-webkit-scrollbar-track {
+  background: transparent !important;
+}
