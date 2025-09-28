@@ -184,11 +184,11 @@ function QuickAddModal({
       taskData.customDays = customDays
     }
     
-    if (hasReminder) {
+    if (startTime) {
       taskData.reminderTime = startTime
     }
     
-    if (hasReminder && repeatFrequency === 'once' && reminderDate) {
+    if ( repeatFrequency === 'once' && reminderDate) {
       taskData.reminderDate = reminderDate
     }
     

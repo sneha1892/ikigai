@@ -7,6 +7,7 @@ import QuickAddModal from '../components/QuickAddModal'
 import RoutineModal from '../components/RoutineModal'
 import AddFromLibraryModal from '../components/AddFromLibraryModal'
 import type { Task, UserStats, Goal, Routine, DailyModification } from '../types'
+import { nanoid } from 'nanoid'
 
 interface DayPlanProps {
   tasks: Task[]
@@ -165,6 +166,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
         date: selectedDate.toISOString().split('T')[0],
         itemId: item.id,
         itemType: item.type,
+        instanceId: nanoid(), // ← UNIQUE INSTANCE ID
         modification: { 
           status: 'added' as const,
           ...(startTime && { startTime })
@@ -232,14 +234,24 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
     const selectedDayId = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][selectedDate.getDay()]
 
     const modificationsForDay = dailyModifications.filter(m => m.date === iso)
-    const skippedItemIds = new Set(modificationsForDay.filter(m => m.modification.status === 'skipped').map(m => m.itemId))
+    // Build set of skipped IDs: for scheduled items → itemId; for added → instanceId
+    const skippedIds = new Set<string>();
+    modificationsForDay
+      .filter(m => m.modification.status === 'skipped')
+      .forEach(m => {
+        if (m.instanceId) {
+          skippedIds.add(m.instanceId); // skip specific instance
+        } else {
+          skippedIds.add(m.itemId); // skip scheduled item
+        }
+      });
     const addedModifications = modificationsForDay.filter(m => m.modification.status === 'added');
     
     console.log('📅 Timeline generation debug:', {
       iso,
       totalModifications: dailyModifications.length,
       modificationsForDay: modificationsForDay.length,
-      skippedItemIds: Array.from(skippedItemIds),
+      skippedItemIds: Array.from(skippedIds),
       addedModifications: addedModifications.length,
       modificationsForDayData: modificationsForDay
     });
@@ -254,34 +266,36 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
       return false
     })
 
-    const addedRoutines = addedModifications
-      .filter(mod => mod.itemType === 'routine')
-      .map((mod, index) => {
-        const routine = routines.find(r => r.id === mod.itemId)
-        if (!routine) return null;
-        // Create a unique instance for the timeline using modification ID or fallback
-        const uniqueId = mod.id || `temp-${Date.now()}-${index}`;
-        return {
-          ...routine,
-          id: `mod-${uniqueId}-${routine.id}`,
-          startTime: mod.modification.startTime || routine.startTime || '09:00'
-        };
-      })
-      .filter((r): r is Routine => r !== null)
+  // Added Routines (from modifications)
+  const addedRoutines = addedModifications
+    .filter(mod => mod.itemType === 'routine')
+    .map(mod => {
+      const routine = routines.find(r => r.id === mod.itemId);
+      if (!routine) return null;
+      return {
+        ...routine,
+        id: mod.instanceId || `mod-${mod.id}-${routine.id}`, // Use instanceId as timeline ID
+        startTime: mod.modification.startTime || routine.startTime || '09:00',
+        _isAddedInstance: true,
+        _originalId: routine.id,
+        _instanceId: mod.instanceId || mod.id
+      };
+    })
+    .filter((r): r is Routine & { _isAddedInstance: true; _originalId: string; _instanceId: string } => r !== null);
+
 
     const allRoutinesForDay = [...scheduledRoutines, ...addedRoutines]
 
     allRoutinesForDay.forEach(routine => {
       // Check if this routine (or its original ID if it's an added routine) is skipped
       const checkId = routine.id.startsWith('mod-') ? routine.id.split('-').slice(-1)[0] : routine.id
-      if (skippedItemIds.has(checkId)) return
+      if (skippedIds.has(checkId)) return
       // Get both habits and tasks for the routine, filtering out skipped ones
       const routineHabits = tasks.filter(t => {
         if (!routine.habitIds.includes(t.id)) return false;
         // Check if this specific habit is skipped for today
-        const isSkipped = skippedItemIds.has(t.id);
-        console.log('🔍 Habit filter check:', { habitId: t.id, habitName: t.name, isSkipped, skippedItemIds: Array.from(skippedItemIds) });
-        return !isSkipped;
+        if (skippedIds.has(t.id)) return false; // ← scheduled habit skip
+      return true;
       }).map(habit => {
         // Check completion based on selected date for habits in routines
         const completionDates = Array.isArray(habit.completionDates) ? habit.completionDates : []
@@ -294,7 +308,8 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
       const routineTasks = tasks.filter(t => {
         if (!routine.taskIds?.includes(t.id)) return false;
         // Check if this specific task is skipped for today
-        return !skippedItemIds.has(t.id);
+        if (skippedIds.has(t.id)) return false; // ← scheduled habit skip
+        return true;
       }).map(task => {
         // For one-time tasks, check if completed on the selected date
         return {
@@ -339,26 +354,28 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
       })
     })
 
-    const addedTasks: Task[] = addedModifications
-      .filter(mod => mod.itemType === 'task')
-      .map((mod, index) => {
-        const task = tasks.find(t => t.id === mod.itemId);
-        if (!task || !task.id) return null;
-        // Create a unique instance for the timeline using modification ID or fallback
-        const uniqueId = mod.id || `temp-${Date.now()}-${index}`;
-        return {
-          ...task,
-          id: `mod-${uniqueId}-${task.id}`,
-          reminderTime: mod.modification.startTime || task.reminderTime || '09:00',
-          reminderDate: iso, // Make sure it's for today
-          repeatFrequency: 'once' as const,
-        } as Task;
-      })
-      .filter((t): t is Task => t !== null);
+    // Added Tasks (from modifications)
+  const addedTasks: (Task & { _isAddedInstance: true; _originalId: string; _instanceId: string })[] = addedModifications
+    .filter(mod => mod.itemType === 'task')
+    .map(mod => {
+      const task = tasks.find(t => t.id === mod.itemId);
+      if (!task || !task.id) return null;
+      return {
+        ...task,
+        id: mod.instanceId || `mod-${mod.id}-${task.id}`,
+        reminderTime: mod.modification.startTime || task.reminderTime || '09:00',
+        reminderDate: iso,
+        repeatFrequency: 'once' as const,
+        _isAddedInstance: true,
+        _originalId: task.id,
+        _instanceId: mod.instanceId || mod.id
+      } as Task & { _isAddedInstance: true; _originalId: string; _instanceId: string };
+    })
+  .filter((t): t is Task & { _isAddedInstance: true; _originalId: string; _instanceId: string } => t !== null);
 
     const scheduledTasks = tasks.filter(task => {
-      if (skippedItemIds.has(task.id)) return false
-      if (!task.reminderTime) return false
+      if (skippedIds.has(task.id)) return false
+      if (!task.reminderTime ||task.hasReminder) return false
       if (routineHabitIds.has(task.id)) return false
       if (routineTaskIds.has(task.id)) return false
       if (task.repeatFrequency === 'once') return task.reminderDate === iso
@@ -394,7 +411,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
     })
 
     const dayStartMinutes = timeToMinutes(dayStartTime)
-    const dayEndMinutes = 22 * 60
+    const dayEndMinutes = 24 * 60
 
     if (events.length === 0) {
       const startDisp = formatDisplayTime(dayStartTime)
@@ -532,7 +549,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                       const modification = {
                         date: selectedDate.toISOString().split('T')[0],
                         itemId: h.id,
-                        itemType: 'task', // Habits are stored as tasks
+                        itemType: 'task' as const, // Habits are stored as tasks
                         modification: { status: 'skipped' as const }
                       };
                       console.log('🟡 Calling onAddModification for habit skip:', modification);
@@ -730,18 +747,43 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                         onDelete={onDeleteTask} 
                         onSkip={(taskId) => {
                           console.log('🟡 Task skip called:', { taskId, onAddModification: !!onAddModification });
-                          if (onAddModification) {
-                            const originalId = taskId.startsWith('mod-') ? taskId.split('-').slice(-1)[0] : taskId;
-                            const modification = {
+                          if (!onAddModification) {
+                            console.log('🔴 onAddModification not available');
+                            return;
+                          }
+                        
+                          // Check if it's an added instance (has instanceId in modifications)
+                          const isAddedInstance = dailyModifications.some(
+                            m => m.instanceId && (m.instanceId === taskId || m.id === taskId)
+                          );
+                        
+                          if (isAddedInstance) {
+                            // Find the modification to get originalId and instanceId
+                            const mod = dailyModifications.find(m => 
+                              m.instanceId === taskId || 
+                              (m.id === taskId && m.instanceId)
+                            );
+                            if (mod) {
+                              onAddModification({
+                                date: selectedDate.toISOString().split('T')[0],
+                                itemId: mod.itemId,
+                                itemType: mod.itemType,
+                                instanceId: mod.instanceId,
+                                modification: { status: 'skipped' }
+                              });
+                            }
+                          } else {
+                            // It's a scheduled item
+                            const originalId = taskId.startsWith('mod-') 
+                              ? taskId.split('-').slice(-1)[0] 
+                              : taskId;
+                            
+                            onAddModification({
                               date: selectedDate.toISOString().split('T')[0],
                               itemId: originalId,
                               itemType: 'task',
-                              modification: { status: 'skipped' as const }
-                            };
-                            console.log('🟡 Calling onAddModification for skip:', modification);
-                            onAddModification(modification);
-                          } else {
-                            console.log('🔴 onAddModification not available for skip');
+                              modification: { status: 'skipped' }
+                            });
                           }
                         }}
                         showTime={false} 

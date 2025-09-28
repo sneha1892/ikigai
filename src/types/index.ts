@@ -43,6 +43,7 @@ export interface DailyModification {
   date: string; // 'YYYY-MM-DD' format
   itemId: string; // The ID of the Task or Routine template it refers to
   itemType: 'task' | 'routine';
+  instanceId?: string; // The ID of the instance of the Task or Routine  
   
   // The change being made for this day
   modification: {
