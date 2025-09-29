@@ -375,7 +375,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
 
     const scheduledTasks = tasks.filter(task => {
       if (skippedIds.has(task.id)) return false
-      if (!task.reminderTime ||task.hasReminder) return false
+      if (!task.reminderTime ) return false
       if (routineHabitIds.has(task.id)) return false
       if (routineTaskIds.has(task.id)) return false
       if (task.repeatFrequency === 'once') return task.reminderDate === iso

@@ -17,7 +17,7 @@ import {
   deleteRoutine as firestoreDeleteRoutine,
   initializeUserData,
   migrateHabitCompletions,
-  addModification as firestoreAddModification,
+  //addModification as FindAndUpsertModification,
   findAndUpsertModification as firestoreFindAndUpsertModification,
   deleteModification as firestoreDeleteModification,
   subscribeToUserModifications

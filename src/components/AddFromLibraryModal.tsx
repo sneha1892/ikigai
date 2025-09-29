@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { X, Search } from 'lucide-react'
 import { useTheme } from '../contexts/ThemeContext'
-import type { Task, Routine, RepeatFrequency } from '../types'
+import type { Task, Routine } from '../types'
 import { PILLAR_CONFIGS } from '../types'
 
 interface AddFromLibraryModalProps {
