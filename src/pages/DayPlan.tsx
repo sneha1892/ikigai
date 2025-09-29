@@ -476,6 +476,19 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
   const RoutineCard = ({ routine, habits }: { routine: Routine; habits: Task[] }) => {
     const completed = habits.filter(h => h.completed).length
     const progress = habits.length ? (completed / habits.length) * 100 : 0
+    // Calculate duration
+    const startMinutes = timeToMinutes(routine.startTime);
+    let durationMinutes: number;
+
+    if (routine.endTime) {
+      const endMinutes = timeToMinutes(routine.endTime);
+      durationMinutes = endMinutes - startMinutes;
+      if (durationMinutes <= 0) {
+        durationMinutes = habits.reduce((sum, item) => sum + (item.duration || 30), 0);
+      }
+    } else {
+      durationMinutes = habits.reduce((sum, item) => sum + (item.duration || 30), 0);
+    }
     const isAdded = routine.id.startsWith('mod-');
     const originalId = isAdded ? routine.id.split('-').slice(-1)[0] : routine.id;
 
@@ -490,7 +503,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ margin: 0, fontSize: 16, fontWeight: 600, color: colors.text.primary }}>{routine.name}</div>
-            <div style={{ margin: 0, fontSize: 13, color: colors.text.tertiary }}>{completed}/{habits.length} completed</div>
+            <div style={{ margin: 0, fontSize: 13, color: colors.text.tertiary }}>{completed}/{habits.length} completed • {durationMinutes}m</div>
           </div>
           <button onClick={() => setRoutineMenuFor(prev => prev === routine.id ? null : routine.id)} style={{ width: 32, height: 32, borderRadius: 8, background: 'transparent', border: 'none', color: colors.text.tertiary, position: 'relative' }}>
             <MoreVertical size={16} />
