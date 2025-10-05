@@ -9,14 +9,22 @@ export const getDateString = (date: Date): string => {
   return date.toISOString().split('T')[0]
 }
 
-  // Helper function to check if a date is in the future
-const isFutureDate = (date: Date): boolean => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const target = new Date(date);
-    target.setHours(0, 0, 0, 0);
-    return target > today;
-  };
+// src/utils/time.ts
+export const timeToMinutes = (timeStr: string): number => {
+  if (!timeStr) return 0
+  if (timeStr.includes(' ')) {
+    const [time, period] = timeStr.split(' ')
+    const [h, m] = time.split(':').map(Number)
+    let hh = h
+    if (period === 'PM' && h !== 12) hh += 12
+    if (period === 'AM' && h === 12) hh = 0
+    return hh * 60 + m
+  }
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  return (hours || 0) * 60 + (minutes || 0)
+}
+
+
 /**
  * Get a date from a date string
  */

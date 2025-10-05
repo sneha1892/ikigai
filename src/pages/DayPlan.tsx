@@ -10,7 +10,6 @@ import type { Task, UserStats, Goal, Routine, DailyModification } from '../types
 import { nanoid } from 'nanoid'
 
 
-
 interface DayPlanProps {
   tasks: Task[]
   userStats: UserStats
@@ -71,6 +70,8 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
     return target > today;
   };
   const isFuture = isFutureDate(selectedDate)
+
+
   
   // Click outside to close menus
   useEffect(() => {
@@ -179,7 +180,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
     setRoutineMenuFor(null)
     setShowAddFromLibrary(false)
   }
-
+  
   const handleAddItemFromLibrary = (item: { id: string, type: 'task' | 'routine' }, startTime?: string) => {
     console.log('🔵 handleAddItemFromLibrary called:', { item, startTime, onAddModification: !!onAddModification });
     if (onAddModification) {
@@ -284,6 +285,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
       addedModifications: addedModifications.length,
       modificationsForDayData: modificationsForDay
     });
+
 
     // Routines → add as a single event composed of its habits and tasks
     const routineHabitIds = new Set((routines ?? []).flatMap(r => r.habitIds))
@@ -522,6 +524,15 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
 }
     return events
   }, [tasks, routines, dailyModifications, selectedDate, dayStartTime])
+
+  const busyTimeRanges = useMemo(() => {
+    return timelineEvents
+      .filter(e => e.type === 'task' || e.type === 'routine')
+      .map(e => ({
+        start: timeToMinutes(e.startTime!),
+        end: timeToMinutes(e.endTime!)
+      }))
+  }, [timelineEvents])
 
   // Next Up computation
   const nextUp = useMemo(() => {
@@ -1133,6 +1144,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
           availableTasks={tasks}
           availableRoutines={routines}
           prefilledStartTime={prefilledStartTime || undefined}
+          busyTimeRanges={busyTimeRanges}
         />
       )}
     </div>

@@ -3,6 +3,7 @@ import { X, Search } from 'lucide-react'
 import { useTheme } from '../contexts/ThemeContext'
 import type { Task, Routine } from '../types'
 import { PILLAR_CONFIGS } from '../types'
+import { timeToMinutes } from '../utils/dateUtils'
 
 interface AddFromLibraryModalProps {
   isOpen: boolean
@@ -12,6 +13,7 @@ interface AddFromLibraryModalProps {
   availableRoutines: Routine[]
   prefilledStartTime?: string
   onTimeChange?: (time: string | null) => void
+  busyTimeRanges?: { start: number; end: number }[]
 }
 
 function AddFromLibraryModal({
@@ -21,6 +23,7 @@ function AddFromLibraryModal({
   availableTasks,
   availableRoutines,
   prefilledStartTime='',
+  busyTimeRanges
 }: AddFromLibraryModalProps) {
   const { colors } = useTheme()
   const [searchQuery, setSearchQuery] = useState('')
@@ -28,6 +31,23 @@ function AddFromLibraryModal({
   const [selectedItem, setSelectedItem] = useState<{ id: string; type: 'task' | 'routine' } | null>(null)
   const [customStartTime, setCustomStartTime] = useState<string>(prefilledStartTime || '')
   const [timeError, setTimeError] = useState<string | null>(null)
+  const [timeWarning, setTimeWarning] = useState<string | null>(null)
+
+
+  useEffect(() => {
+    setTimeWarning(null)
+    if (!customStartTime || !busyTimeRanges) return
+
+    const inputMinutes = timeToMinutes(customStartTime) // ← you'll need this helper
+
+    const isInsideBusySlot = busyTimeRanges.some(range => {
+      return inputMinutes >= range.start && inputMinutes < range.end
+    })
+
+    if (isInsideBusySlot) {
+      setTimeWarning('You already have an item scheduled at this time. But you can still click "Add to Day" if you want to override.')
+    }
+  }, [customStartTime, busyTimeRanges])
   
 
   // Reset when modal opens/closes
@@ -41,7 +61,12 @@ function AddFromLibraryModal({
   
 
   const handleAdd = () => {
-    if (!selectedItem) return
+    if (!selectedItem) return // No item selected
+
+    if (!customStartTime.trim()) {
+      setTimeError('Start time is required')
+      return
+    }
 
     // Basic format validation (optional)
     if (customStartTime && !/^\d{2}:\d{2}$/.test(customStartTime)) {
@@ -195,6 +220,9 @@ function AddFromLibraryModal({
               />
               {timeError && (
                 <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{timeError}</p>
+              )}
+              {timeWarning && (
+                <p style={{ color: '#F59E0B', fontSize: '12px', marginTop: '4px' }}>{timeWarning}</p>
               )}
             </div>
 
