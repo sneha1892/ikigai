@@ -200,10 +200,8 @@ function RoutineModal({
     // Handle taskIds - always include it to handle removal case
     routineData.taskIds = selectedTaskIds.length > 0 ? selectedTaskIds : []
     
-    if (endTime && endTime.trim()) {
-      routineData.endTime = endTime.trim()
-    }
-    
+    // Always include endTime (even if null) to properly clear it in Firestore
+    routineData.endTime = endTime.trim() || null
     
     if (editingRoutine && onEditRoutine) {
       onEditRoutine(editingRoutine.id, routineData)

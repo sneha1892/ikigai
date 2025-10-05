@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.1.1
+- Indicator for Today
+- Added habits have independent mark done
+- Removed the option to mark habits done in future dates
+
 ## v1.1.0
 - New 3-page layout: Habits & Tasks, Day Plan, Goals
 - Multi-day habit checklist view — thanks Divya

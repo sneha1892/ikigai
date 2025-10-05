@@ -9,6 +9,14 @@ export const getDateString = (date: Date): string => {
   return date.toISOString().split('T')[0]
 }
 
+  // Helper function to check if a date is in the future
+const isFutureDate = (date: Date): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
+    return target > today;
+  };
 /**
  * Get a date from a date string
  */
