@@ -8,6 +8,7 @@ import RoutineModal from '../components/RoutineModal'
 import AddFromLibraryModal from '../components/AddFromLibraryModal'
 import type { Task, UserStats, Goal, Routine, DailyModification } from '../types'
 import { nanoid } from 'nanoid'
+import { minutesTo24Hour } from '../utils/dateUtils'
 
 interface DayPlanProps {
   tasks: Task[]
@@ -60,10 +61,18 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
   const [dayStartTime, setDayStartTime] = useState<string>('07:30')
   const [hoveredFreeSlotId, setHoveredFreeSlotId] = useState<string | null>(null)
   const [showAddFromLibrary, setShowAddFromLibrary] = useState(false)
-  // Routines always expanded per user preference
 
-  // No-op effect removed since header shows only month+year
+  const isFutureDate = (date: Date): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
+    return target > today;
+  };
+  const isFuture = isFutureDate(selectedDate)
 
+
+  
   // Click outside to close menus
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -93,6 +102,19 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
       }
     }
   }, [routineMenuFor, freeSlotMenuFor, speedDialOpen, habitMenuFor])
+
+  
+
+  // Add this state for UI feedback
+  const [futureDateMessage, setFutureDateMessage] = useState<string | null>(null);
+
+  // Auto-clear message
+  useEffect(() => {
+    if (futureDateMessage) {
+      const id = setTimeout(() => setFutureDateMessage(null), 2000);
+      return () => clearTimeout(id);
+    }
+  }, [futureDateMessage]);
 
   const handleEditTask = (task: Task) => {
     setEditingTask(task)
@@ -158,27 +180,68 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
     setRoutineMenuFor(null)
     setShowAddFromLibrary(false)
   }
-
+  
   const handleAddItemFromLibrary = (item: { id: string, type: 'task' | 'routine' }, startTime?: string) => {
-    console.log('🔵 handleAddItemFromLibrary called:', { item, startTime, onAddModification: !!onAddModification });
-    if (onAddModification) {
-      const modification = {
-        date: selectedDate.toISOString().split('T')[0],
-        itemId: item.id,
-        itemType: item.type,
-        instanceId: nanoid(), // ← UNIQUE INSTANCE ID
-        modification: { 
-          status: 'added' as const,
-          ...(startTime && { startTime })
+    if (!onAddModification) return;
+  
+    let finalStartTime = startTime;
+    let finalEndTime: string | undefined = undefined;
+  
+    if (item.type === 'routine' && startTime && busyTimeRanges) {
+      const routine = routines.find(r => r.id === item.id);
+      if (routine) {
+        // Get intended duration
+        let durationMinutes = 30;
+        if (routine.durationMinutes !== undefined) {
+          durationMinutes = routine.durationMinutes;
+        } else if (routine.endTime) {
+          const startMin = timeToMinutes(routine.startTime || '09:00');
+          const endMin = timeToMinutes(routine.endTime);
+          durationMinutes = Math.max(5, endMin - startMin);
+        } else {
+          durationMinutes = [...(routine.habitIds || []), ...(routine.taskIds || [])]
+            .map(id => tasks.find(t => t.id === id)?.duration || 30)
+            .reduce((a, b) => a + b, 0);
         }
-      };
-      console.log('🔵 Calling onAddModification with:', modification);
-      onAddModification(modification);
-    } else {
-      console.log('🔴 onAddModification is not available');
+  
+        // Find free slot end
+        const startMin = timeToMinutes(startTime);
+        let freeSlotEndMin = 24 * 60;
+        const sortedBusy = [...busyTimeRanges].sort((a, b) => a.start - b.start);
+        let prevEnd = 0;
+        for (const range of sortedBusy) {
+          if (startMin >= prevEnd && startMin < range.start) {
+            freeSlotEndMin = range.start;
+            break;
+          }
+          prevEnd = range.end;
+        }
+        if (freeSlotEndMin === 24 * 60 && sortedBusy.length > 0 && startMin >= sortedBusy[sortedBusy.length - 1].end) {
+          freeSlotEndMin = 24 * 60;
+        }
+  
+        // Clip duration to free slot
+        const maxAllowed = freeSlotEndMin - startMin;
+        const actualDuration = Math.min(durationMinutes, maxAllowed);
+        const actualEndMin = startMin + actualDuration;
+        finalEndTime = minutesTo24Hour(actualEndMin); // ← you have this helper now
+      }
     }
+  
+    const modification = {
+      date: selectedDate.toISOString().split('T')[0],
+      itemId: item.id,
+      itemType: item.type,
+      instanceId: nanoid(),
+      modification: { 
+        status: 'added' as const,
+        ...(finalStartTime && { startTime: finalStartTime }),
+        ...(finalEndTime && { endTime: finalEndTime })
+      }
+    };
+    onAddModification(modification);
     setShowAddFromLibrary(false);
-  }
+  };
 
   // Calendar helpers
   // Note: Previously had a generic getDayId helper; in this compact version we inline where needed.
@@ -226,7 +289,15 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
   }
 
   // Build timeline for selected day
-  interface TimelineEvent { id: string; type: 'task' | 'routine' | 'freeTime' | 'dayEnd'; time: string; task?: Task; routine?: Routine; habits?: Task[]; startTime?: string; endTime?: string }
+  interface TimelineEvent { id: string; type: 'task' | 'routine' | 'freeTime' | 'dayEnd'; 
+    time: string; 
+    task?: Task; 
+    routine?: Routine; 
+    habits?: Task[]; 
+    startTime?: string; 
+    endTime?: string;
+    unscheduledHabits?: Task[];
+  }
   const timelineEvents = useMemo(() => {
     const events: TimelineEvent[] = []
     const getTaskDuration = (task: Task): number => task.duration !== undefined ? task.duration : 30
@@ -256,6 +327,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
       modificationsForDayData: modificationsForDay
     });
 
+
     // Routines → add as a single event composed of its habits and tasks
     const routineHabitIds = new Set((routines ?? []).flatMap(r => r.habitIds))
     const routineTaskIds = new Set((routines ?? []).flatMap(r => r.taskIds || []))
@@ -267,21 +339,22 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
     })
 
   // Added Routines (from modifications)
-  const addedRoutines = addedModifications
-    .filter(mod => mod.itemType === 'routine')
-    .map(mod => {
-      const routine = routines.find(r => r.id === mod.itemId);
-      if (!routine) return null;
-      return {
-        ...routine,
-        id: mod.instanceId || `mod-${mod.id}-${routine.id}`, // Use instanceId as timeline ID
-        startTime: mod.modification.startTime || routine.startTime || '09:00',
-        _isAddedInstance: true,
-        _originalId: routine.id,
-        _instanceId: mod.instanceId || mod.id
-      };
-    })
-    .filter((r): r is Routine & { _isAddedInstance: true; _originalId: string; _instanceId: string } => r !== null);
+    const addedRoutines = addedModifications
+      .filter(mod => mod.itemType === 'routine')
+      .map(mod => {
+        const routine = routines.find(r => r.id === mod.itemId);
+        if (!routine) return null;
+        return {
+          ...routine,
+          id: mod.instanceId || `mod-${mod.id}-${routine.id}`, // Use instanceId as timeline ID
+          startTime: mod.modification.startTime || routine.startTime || '09:00',
+          endTime: mod.modification.endTime || routine.endTime || '',
+          _isAddedInstance: true,
+          _originalId: routine.id,
+          _instanceId: mod.instanceId || mod.id
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null); // ← safer filter
 
 
     const allRoutinesForDay = [...scheduledRoutines, ...addedRoutines]
@@ -334,14 +407,25 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
       const startMin = timeToMinutes(routine.startTime)
       const startDisp = new Date(`2000-01-01T${routine.startTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
       
-      // Use provided endTime if available, otherwise calculate from habits and tasks
-      let endTimeStr: string
-      if (routine.endTime) {
-        endTimeStr = new Date(`2000-01-01T${routine.endTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+      // Determine intended duration (use stored durationMinutes if available)
+      let intendedDurationMinutes: number;
+      if (routine.durationMinutes !== undefined) {
+        intendedDurationMinutes = routine.durationMinutes;
+      } else if (routine.endTime) {
+        const endMin = timeToMinutes(routine.endTime);
+        intendedDurationMinutes = Math.max(5, endMin - startMin);
       } else {
-        const total = allRoutineItems.reduce((s, item) => s + (item.duration || 30), 0)
-        endTimeStr = minutesToTime(startMin + total)
+        intendedDurationMinutes = allRoutineItems.reduce((s, item) => s + (item.duration || 30), 0);
       }
+
+    // Determine end time: prefer modification.endTime (clipped), then routine.endTime, then calculate
+      let endTimeStr: string;
+      if (routine.endTime) {
+        endTimeStr = formatDisplayTime(routine.endTime);
+      } else {
+        const total = allRoutineItems.reduce((s, item) => s + (item.duration || 30), 0);
+        endTimeStr = minutesToTime(startMin + total);
+}
       
       events.push({
         id: `routine-${routine.id}`,
@@ -355,23 +439,26 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
     })
 
     // Added Tasks (from modifications)
-  const addedTasks: (Task & { _isAddedInstance: true; _originalId: string; _instanceId: string })[] = addedModifications
+  const addedTasks: (Task & { _isAddedInstance: true; _originalId: string; _instanceId: string, _modificationId: string })[] = addedModifications
     .filter(mod => mod.itemType === 'task')
     .map(mod => {
       const task = tasks.find(t => t.id === mod.itemId);
       if (!task || !task.id) return null;
+      const isCompleted = mod.modification.completed === true;
       return {
         ...task,
         id: mod.instanceId || `mod-${mod.id}-${task.id}`,
         reminderTime: mod.modification.startTime || task.reminderTime || '09:00',
         reminderDate: iso,
         repeatFrequency: 'once' as const,
+        completed: isCompleted, // ← use instance-level completion
         _isAddedInstance: true,
         _originalId: task.id,
-        _instanceId: mod.instanceId || mod.id
-      } as Task & { _isAddedInstance: true; _originalId: string; _instanceId: string };
+        _instanceId: mod.instanceId || mod.id,
+        _modificationId: mod.id // ← store mod ID for toggling
+      } as Task & { _isAddedInstance: true; _originalId: string; _instanceId: string, _modificationId: string };
     })
-  .filter((t): t is Task & { _isAddedInstance: true; _originalId: string; _instanceId: string } => t !== null);
+  .filter((t): t is Task & { _isAddedInstance: true; _originalId: string; _instanceId: string, _modificationId: string } => t !== null);
 
     const scheduledTasks = tasks.filter(task => {
       if (skippedIds.has(task.id)) return false
@@ -386,22 +473,36 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
     const allTasksForDay = [...scheduledTasks, ...addedTasks]
 
     const sortedTasks = allTasksForDay.sort((a, b) => timeToMinutes(a.reminderTime!) - timeToMinutes(b.reminderTime!))
-    sortedTasks.forEach(task => {
+    sortedTasks.forEach((task, idx) => {
       // For habits, check completion based on selected date
-      const isHabit = Boolean(task.challengeDuration || task.repeatFrequency !== 'once')
-      let taskForDay: Task = task
-      if (isHabit) {
-        const completionDates = Array.isArray(task.completionDates) ? task.completionDates : []
+      let taskForDay: Task = task;
+      // Preserve unique ID and completion for added instances
+      if ((task as any)._isAddedInstance) {
+        // Added instance → treat as one-time task with its own completed state
         taskForDay = {
           ...task,
-          completed: completionDates.includes(iso)
+          repeatFrequency: 'once',
+          completed: task.completed || false, // ← will be wrong, but at least shows all instances
+        };
+      } else {
+        // Scheduled habit → use completionDates
+        const isHabit = Boolean(task.challengeDuration || task.repeatFrequency !== 'once');
+        if (isHabit) {
+          const completionDates = Array.isArray(task.completionDates) ? task.completionDates : [];
+          taskForDay = {
+            ...task,
+            completed: completionDates.includes(iso),
+          };
         }
       }
 
       const startTime = timeToMinutes(taskForDay.reminderTime!)
       const endTimeMin = startTime + getTaskDuration(taskForDay)
+      const uniqueId = (task as any)._instanceId 
+        ? `inst-${(task as any)._instanceId}` 
+        : `${task.id}-${task.reminderTime || 'no-time'}-${idx}`;
       events.push({
-        id: `task-${taskForDay.id}`,
+        id: `task-${uniqueId}`,
         type: 'task',
         time: new Date(`2000-01-01T${taskForDay.reminderTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
         task: taskForDay,
@@ -439,8 +540,52 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
     }
     // Add day end marker for visual closure
     events.push({ id: 'day-end', type: 'dayEnd', time: minutesToTime(dayEndMinutes) })
+
+    // --- UNSCHEDULED HABITS SECTION ---
+    const unscheduledHabits = tasks.filter(task => {
+      // Must be a habit (not one-time task)
+      const isHabit = task.repeatFrequency !== 'once' || Boolean(task.challengeDuration);
+      // Must not be part of any routine
+      const isInRoutine = routineHabitIds.has(task.id) || routineTaskIds.has(task.id);
+      // Must have no reminderTime (unscheduled)
+      const isUnscheduled = !task.reminderTime;
+      // Must not be skipped as a scheduled item
+      const isSkipped = skippedIds.has(task.id);
+      return isHabit && !isInRoutine && isUnscheduled && !isSkipped;
+    }).map(task => ({
+      ...task,
+      // Treat as today's instance with no time
+      id: `unsched-${task.id}-${iso}`, // unique per day
+      _isUnscheduled: true,
+      reminderDate: iso,
+      completed: Array.isArray(task.completionDates) 
+        ? task.completionDates.includes(iso) 
+        : false,
+        _originalId: task.id
+    }));
+
+    // Add unscheduled habits as a special event group
+    if (unscheduledHabits.length > 0) {
+      events.push({
+        id: 'unscheduled-habits',
+        type: 'freeTime', // reuse styling
+        time: 'Unscheduled',
+        startTime: '',
+        endTime: '',
+        unscheduledHabits
+      });
+}
     return events
   }, [tasks, routines, dailyModifications, selectedDate, dayStartTime])
+
+  const busyTimeRanges = useMemo(() => {
+    return timelineEvents
+      .filter(e => e.type === 'task' || e.type === 'routine')
+      .map(e => ({
+        start: timeToMinutes(e.startTime!),
+        end: timeToMinutes(e.endTime!)
+      }))
+  }, [timelineEvents])
 
   // Next Up computation
   const nextUp = useMemo(() => {
@@ -539,6 +684,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
             <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', backgroundColor: colors.surfaceVariant, borderRadius: 8 }}>
               <button 
                 onClick={() => {
+                  if (isFuture) return; // 🔒 BLOCK FUTURE
                   const dateStr = selectedDate.toISOString().split('T')[0]
                   onToggleTask(h.id, dateStr)
                 }} 
@@ -620,9 +766,15 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
               const isSelected = d.toDateString() === selectedDate.toDateString()
               const isToday = d.toDateString() === new Date().toDateString()
               return (
-                <button key={idx} onClick={() => setSelectedDate(d)} style={{ minWidth: '64px', padding: '8px 6px', borderRadius: '10px', border: isSelected ? `2px solid ${colors.text.accent}` : `1px solid ${colors.borderSubtle}`, background: isSelected ? '#10B98120' : colors.surface, color: colors.text.primary, cursor: 'pointer' }}>
+                <button
+                  key={idx}
+                  onClick={() => setSelectedDate(d)}
+                  aria-current={isToday ? 'date' : undefined}
+                  title={d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                  style={{ minWidth: '64px', padding: '8px 6px', borderRadius: '10px', border: isSelected ? `2px solid ${colors.text.accent}` : `1px solid ${colors.borderSubtle}`, background: isSelected ? '#10B98120' : colors.surface, color: colors.text.primary, cursor: 'pointer' }}>
                   <div style={{ fontSize: '12px', color: colors.text.tertiary, marginBottom: '2px' }}>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                  <div style={{ fontSize: '16px', fontWeight: 600, color: isToday ? colors.text.accent : colors.text.primary }}>{d.getDate()}</div>
+                  <div style={{ fontSize: '16px', fontWeight: 600 }}>{d.getDate()}</div>
+                  {isToday && <div style={{ width: 6, height: 6, borderRadius: '50%', background: colors.text.accent, margin: '4px auto 0' }} />}
                 </button>
               )
             })}
@@ -680,6 +832,8 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
             </div>
           </div>
         )}
+        
+
         {timelineEvents.length === 0 ? (
           <div className="md-card" style={{ padding: '24px', textAlign: 'center', backgroundColor: colors.surface }}>
             <p className="body-large" style={{ color: colors.text.tertiary }}>No tasks for this day</p>
@@ -752,53 +906,74 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                       )}
                       <TaskItem 
                         task={event.task} 
+                        isFutureDate={isFuture}
                         onToggleComplete={(taskId) => {
-                          const dateStr = selectedDate.toISOString().split('T')[0]
-                          onToggleTask(taskId, dateStr)
-                        }} 
-                        onEdit={handleEditTask} 
-                        onDelete={onDeleteTask} 
-                        onSkip={(taskId) => {
-                          console.log('🟡 Task skip called:', { taskId, onAddModification: !!onAddModification });
-                          if (!onAddModification) {
-                            console.log('🔴 onAddModification not available');
-                            return;
-                          }
-                        
-                          // Check if it's an added instance (has instanceId in modifications)
-                          const isAddedInstance = dailyModifications.some(
-                            m => m.instanceId && (m.instanceId === taskId || m.id === taskId)
+                          if (isFuture) return;
+
+                          const dateStr = selectedDate.toISOString().split('T')[0];
+                          // Find the modification for this instance
+                          const mod = dailyModifications.find(m => 
+                            m.instanceId === taskId || 
+                            m.id === (event.task as any)._modificationId
                           );
-                        
-                          if (isAddedInstance) {
-                            // Find the modification to get originalId and instanceId
-                            const mod = dailyModifications.find(m => 
-                              m.instanceId === taskId || 
-                              (m.id === taskId && m.instanceId)
-                            );
-                            if (mod) {
+
+                          if (mod && mod.itemType === 'task') {
+                            // Toggle instance completion via dailyModifications
+                            if (onAddModification) {
                               onAddModification({
-                                date: selectedDate.toISOString().split('T')[0],
+                                date: dateStr,
                                 itemId: mod.itemId,
-                                itemType: mod.itemType,
+                                itemType: 'task',
                                 instanceId: mod.instanceId,
-                                modification: { status: 'skipped' }
+                                modification: {
+                                  ...mod.modification,
+                                  completed: !mod.modification.completed
+                                }
                               });
                             }
                           } else {
-                            // It's a scheduled item
-                            const originalId = taskId.startsWith('mod-') 
-                              ? taskId.split('-').slice(-1)[0] 
+                            // Toggle original habit (scheduled version)
+                            const originalId = taskId.startsWith('unsched-')
+                              ? taskId.split('-')[1]
                               : taskId;
-                            
-                            onAddModification({
-                              date: selectedDate.toISOString().split('T')[0],
-                              itemId: originalId,
-                              itemType: 'task',
-                              modification: { status: 'skipped' }
-                            });
+                            onToggleTask(originalId, dateStr);
                           }
                         }}
+                        onEdit={handleEditTask} 
+                        onDelete={onDeleteTask} 
+                        onSkip={(taskId) => {
+                          if (!onAddModification) return;
+
+                          let originalId = taskId;
+                          let instanceId: string | undefined;
+
+                          // Handle unscheduled (shouldn't happen here, but safe)
+                          if (taskId.startsWith('unsched-')) {
+                            originalId = taskId.split('-')[1];
+                          }
+                          // Handle mod-prefixed fallback IDs
+                          else if (taskId.startsWith('mod-')) {
+                            const parts = taskId.split('-');
+                            originalId = parts[parts.length - 1];
+                          }
+                          // Handle raw nanoid instance IDs (most common for added tasks)
+                          else {
+                            const mod = dailyModifications.find(m => m.instanceId === taskId);
+                            if (mod) {
+                              originalId = mod.itemId;
+                              instanceId = mod.instanceId;
+                            }
+                            // else: assume it's a real scheduled task ID → originalId = taskId
+                          }
+
+                          onAddModification({
+                            date: selectedDate.toISOString().split('T')[0],
+                            itemId: originalId,
+                            itemType: 'task',
+                            ...(instanceId && { instanceId }), // only include if it exists
+                            modification: { status: 'skipped' }
+                          });
+}}
                         showTime={false} 
                         hideTypePill 
                         variant="flat"
@@ -806,7 +981,67 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                     </div>
                   ) : event.type === 'routine' && event.routine && event.habits ? (
                     <RoutineCard routine={event.routine} habits={event.habits} />
-                  ) : event.type === 'freeTime' ? (
+                  ) : event.type === 'freeTime' ? (event.unscheduledHabits ? (
+                    // ── UNSCHEDULED HABITS SECTION ──
+                        <div style={{ 
+                          background: colors.surface, 
+                          borderRadius: 12, 
+                          padding: '12px', 
+                          border: `1px solid ${colors.borderSubtle}` 
+                        }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: colors.text.primary }}>
+                            Unscheduled Tasks
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {event.unscheduledHabits.map(habit => (
+                              <TaskItem
+                                key={habit.id}
+                                task={habit}
+                                isFutureDate={isFuture}
+                                onToggleComplete={(taskId) => {
+                                  if (isFuture) return;
+                                  
+                                  const dateStr = selectedDate.toISOString().split('T')[0];
+                                  let originalId = taskId;
+
+                                  if (taskId.startsWith('unsched-')) {
+                                    originalId = taskId.split('-')[1]; // ✅ 'habit123'
+                                  } else if (taskId.startsWith('mod-')) {
+                                    const parts = taskId.split('-');
+                                    originalId = parts[parts.length - 1]; // ✅ last segment = original task ID
+                                  } else {
+                                    // Handle raw nanoid instanceId (no prefix)
+                                    const mod = dailyModifications.find(m => m.instanceId === taskId);
+                                    if (mod) {
+                                      originalId = mod.itemId;
+                                    }
+                                  }
+
+                                  onToggleTask(originalId, dateStr);
+                                }}
+                                onEdit={handleEditTask}
+                                onDelete={onDeleteTask}
+                                onSkip={(taskId) => {
+                                  const originalId = taskId.startsWith('unsched-')
+                                    ? taskId.split('-')[1]
+                                    : taskId;
+                                  if (onAddModification) {
+                                    onAddModification({
+                                      date: selectedDate.toISOString().split('T')[0],
+                                      itemId: originalId,
+                                      itemType: 'task',
+                                      modification: { status: 'skipped' }
+                                    });
+                                  }
+                                }}
+                                showTime={false}
+                                hideTypePill
+                                variant="flat"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                  ) :(
                     <div
                       onMouseEnter={() => setHoveredFreeSlotId(event.id)}
                       onMouseLeave={() => setHoveredFreeSlotId(prev => prev === event.id ? null : prev)}
@@ -877,7 +1112,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                         )}
                       </div>
                     </div>
-                  ) : (
+                  )) : (
                     <div style={{ height: 24 }}>
                       <span style={{ color: colors.text.quaternary, fontSize: 12 }}>End of day</span>
                     </div>
@@ -958,9 +1193,11 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
         <AddFromLibraryModal
           isOpen={showAddFromLibrary}
           onClose={handleCloseModals}
-          onAddItem={(item) => handleAddItemFromLibrary(item, prefilledStartTime)}
+          onAddItem={handleAddItemFromLibrary}
           availableTasks={tasks}
           availableRoutines={routines}
+          prefilledStartTime={prefilledStartTime || undefined}
+          busyTimeRanges={busyTimeRanges}
         />
       )}
     </div>

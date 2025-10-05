@@ -29,7 +29,8 @@ export interface Routine {
   habitIds: string[]
   taskIds?: string[] // Add support for tasks in routines
   startTime: string // reference Task.id of habits
-  endTime?: string // optional end time, if not provided duration is calculated from habits and tasks
+  endTime?: string | null // optional end time, if not provided duration is calculated from habits and tasks
+  durationMinutes?: number;
   color: string
   isActive?: boolean
   createdAt?: Date
@@ -50,6 +51,7 @@ export interface DailyModification {
     status: 'skipped' | 'added' | 'rescheduled';
     startTime?: string; // Overridden start time
     endTime?: string;   // Overridden end time
+    completed?: boolean;
   }
 }
 

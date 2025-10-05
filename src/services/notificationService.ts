@@ -159,7 +159,11 @@ export class NotificationService {
       icon: '/ikigai-logo.png',
       badge: '/ikigai-logo.png',
       tag: task.id,
-      requireInteraction: true
+      requireInteraction: true,
+      data: {
+        url: window.location.origin,
+        taskId: task.id
+      }
     }
 
     try {

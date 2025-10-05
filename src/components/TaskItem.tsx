@@ -16,9 +16,10 @@ interface TaskItemProps {
   showTime?: boolean
   hideTypePill?: boolean
   variant?: 'default' | 'flat'
+  isFutureDate?: boolean
 }
 
-function TaskItem({ task, onToggleComplete, onEdit, onDelete, onSkip, hideTypePill, variant = 'default' }: TaskItemProps) {
+function TaskItem({ task, onToggleComplete, onEdit, onDelete, onSkip, hideTypePill, variant = 'default', isFutureDate }: TaskItemProps) {
   const { colors } = useTheme()
   const [isAnimating, setIsAnimating] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -67,6 +68,7 @@ function TaskItem({ task, onToggleComplete, onEdit, onDelete, onSkip, hideTypePi
   }
 
   const handleToggle = () => {
+    if (isFutureDate) return; // 🔒 BLOCK FUTURE
     if (!task.completed) {
       setIsAnimating(true)
       setTimeout(() => setIsAnimating(false), 1200) // Longer duration for better visibility
