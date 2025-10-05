@@ -10,7 +10,7 @@ interface AddFromLibraryModalProps {
   onAddItem: (item: { id: string, type: 'task' | 'routine' }, startTime?: string) => void
   availableTasks: Task[]  
   availableRoutines: Routine[]
-  prefilledStartTime?: string // e.g., "14:00"
+  prefilledStartTime?: string
   onTimeChange?: (time: string | null) => void
 }
 
@@ -28,6 +28,7 @@ function AddFromLibraryModal({
   const [selectedItem, setSelectedItem] = useState<{ id: string; type: 'task' | 'routine' } | null>(null)
   const [customStartTime, setCustomStartTime] = useState<string>(prefilledStartTime || '')
   const [timeError, setTimeError] = useState<string | null>(null)
+  
 
   // Reset when modal opens/closes
   useEffect(() => {

@@ -1129,9 +1129,10 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
         <AddFromLibraryModal
           isOpen={showAddFromLibrary}
           onClose={handleCloseModals}
-          onAddItem={(item) => handleAddItemFromLibrary(item, prefilledStartTime)}
+          onAddItem={handleAddItemFromLibrary}
           availableTasks={tasks}
           availableRoutines={routines}
+          prefilledStartTime={prefilledStartTime || undefined}
         />
       )}
     </div>
