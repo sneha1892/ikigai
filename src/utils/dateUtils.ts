@@ -15,7 +15,9 @@ export const minutesTo24Hour = (minutes: number): string => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 };
 
+// Time helpers
 export const timeToMinutes = (timeStr: string): number => {
+  // Supports "HH:MM" and "H:MM AM/PM"
   if (!timeStr) return 0
   if (timeStr.includes(' ')) {
     const [time, period] = timeStr.split(' ')
@@ -28,6 +30,46 @@ export const timeToMinutes = (timeStr: string): number => {
   const [hours, minutes] = timeStr.split(':').map(Number)
   return (hours || 0) * 60 + (minutes || 0)
 }
+
+export const minutesToTime = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
+  return `${displayHours}:${mins.toString().padStart(2, '0')} ${period}`
+}
+
+export const convertTo24Hour = (displayTime: string): string => {
+  const [time, period] = displayTime.split(' ')
+  const [hours, minutes] = time.split(':').map(Number)
+  let hour24 = hours
+  if (period === 'PM' && hours !== 12) hour24 += 12
+  if (period === 'AM' && hours === 12) hour24 = 0
+  const result = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+  return result
+}
+
+export const formatDisplayTime = (time24: string): string => {
+  const [hStr, mStr] = time24.split(':')
+  const h = parseInt(hStr, 10)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const displayHour = h % 12 === 0 ? 12 : h % 12
+  return `${displayHour}:${mStr} ${period}`
+}
+
+/*export const timeToMinutes = (timeStr: string): number => {
+  if (!timeStr) return 0
+  if (timeStr.includes(' ')) {
+    const [time, period] = timeStr.split(' ')
+    const [h, m] = time.split(':').map(Number)
+    let hh = h
+    if (period === 'PM' && h !== 12) hh += 12
+    if (period === 'AM' && h === 12) hh = 0
+    return hh * 60 + m
+  }
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  return (hours || 0) * 60 + (minutes || 0)
+}*/
 
 /**
  * Get a date from a date string
