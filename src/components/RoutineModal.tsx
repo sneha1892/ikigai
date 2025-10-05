@@ -188,7 +188,8 @@ function RoutineModal({
       habitIds: selectedHabitIds,
       startTime,
       color: selectedColor,
-      isActive: true
+      isActive: true,
+      durationMinutes: actualDuration,
     }
     
     // Add scheduling info

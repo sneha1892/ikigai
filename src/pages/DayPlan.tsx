@@ -8,7 +8,7 @@ import RoutineModal from '../components/RoutineModal'
 import AddFromLibraryModal from '../components/AddFromLibraryModal'
 import type { Task, UserStats, Goal, Routine, DailyModification } from '../types'
 import { nanoid } from 'nanoid'
-
+import { minutesTo24Hour } from '../utils/dateUtils'
 
 interface DayPlanProps {
   tasks: Task[]
@@ -182,25 +182,66 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
   }
   
   const handleAddItemFromLibrary = (item: { id: string, type: 'task' | 'routine' }, startTime?: string) => {
-    console.log('🔵 handleAddItemFromLibrary called:', { item, startTime, onAddModification: !!onAddModification });
-    if (onAddModification) {
-      const modification = {
-        date: selectedDate.toISOString().split('T')[0],
-        itemId: item.id,
-        itemType: item.type,
-        instanceId: nanoid(), // ← UNIQUE INSTANCE ID
-        modification: { 
-          status: 'added' as const,
-          ...(startTime && { startTime })
+    if (!onAddModification) return;
+  
+    let finalStartTime = startTime;
+    let finalEndTime: string | undefined = undefined;
+  
+    if (item.type === 'routine' && startTime && busyTimeRanges) {
+      const routine = routines.find(r => r.id === item.id);
+      if (routine) {
+        // Get intended duration
+        let durationMinutes = 30;
+        if (routine.durationMinutes !== undefined) {
+          durationMinutes = routine.durationMinutes;
+        } else if (routine.endTime) {
+          const startMin = timeToMinutes(routine.startTime || '09:00');
+          const endMin = timeToMinutes(routine.endTime);
+          durationMinutes = Math.max(5, endMin - startMin);
+        } else {
+          durationMinutes = [...(routine.habitIds || []), ...(routine.taskIds || [])]
+            .map(id => tasks.find(t => t.id === id)?.duration || 30)
+            .reduce((a, b) => a + b, 0);
         }
-      };
-      console.log('🔵 Calling onAddModification with:', modification);
-      onAddModification(modification);
-    } else {
-      console.log('🔴 onAddModification is not available');
+  
+        // Find free slot end
+        const startMin = timeToMinutes(startTime);
+        let freeSlotEndMin = 24 * 60;
+        const sortedBusy = [...busyTimeRanges].sort((a, b) => a.start - b.start);
+        let prevEnd = 0;
+        for (const range of sortedBusy) {
+          if (startMin >= prevEnd && startMin < range.start) {
+            freeSlotEndMin = range.start;
+            break;
+          }
+          prevEnd = range.end;
+        }
+        if (freeSlotEndMin === 24 * 60 && sortedBusy.length > 0 && startMin >= sortedBusy[sortedBusy.length - 1].end) {
+          freeSlotEndMin = 24 * 60;
+        }
+  
+        // Clip duration to free slot
+        const maxAllowed = freeSlotEndMin - startMin;
+        const actualDuration = Math.min(durationMinutes, maxAllowed);
+        const actualEndMin = startMin + actualDuration;
+        finalEndTime = minutesTo24Hour(actualEndMin); // ← you have this helper now
+      }
     }
+  
+    const modification = {
+      date: selectedDate.toISOString().split('T')[0],
+      itemId: item.id,
+      itemType: item.type,
+      instanceId: nanoid(),
+      modification: { 
+        status: 'added' as const,
+        ...(finalStartTime && { startTime: finalStartTime }),
+        ...(finalEndTime && { endTime: finalEndTime })
+      }
+    };
+    onAddModification(modification);
     setShowAddFromLibrary(false);
-  }
+  };
 
   // Calendar helpers
   // Note: Previously had a generic getDayId helper; in this compact version we inline where needed.
@@ -298,21 +339,22 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
     })
 
   // Added Routines (from modifications)
-  const addedRoutines = addedModifications
-    .filter(mod => mod.itemType === 'routine')
-    .map(mod => {
-      const routine = routines.find(r => r.id === mod.itemId);
-      if (!routine) return null;
-      return {
-        ...routine,
-        id: mod.instanceId || `mod-${mod.id}-${routine.id}`, // Use instanceId as timeline ID
-        startTime: mod.modification.startTime || routine.startTime || '09:00',
-        _isAddedInstance: true,
-        _originalId: routine.id,
-        _instanceId: mod.instanceId || mod.id
-      };
-    })
-    .filter((r): r is Routine & { _isAddedInstance: true; _originalId: string; _instanceId: string } => r !== null);
+    const addedRoutines = addedModifications
+      .filter(mod => mod.itemType === 'routine')
+      .map(mod => {
+        const routine = routines.find(r => r.id === mod.itemId);
+        if (!routine) return null;
+        return {
+          ...routine,
+          id: mod.instanceId || `mod-${mod.id}-${routine.id}`, // Use instanceId as timeline ID
+          startTime: mod.modification.startTime || routine.startTime || '09:00',
+          endTime: mod.modification.endTime || routine.endTime || '',
+          _isAddedInstance: true,
+          _originalId: routine.id,
+          _instanceId: mod.instanceId || mod.id
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null); // ← safer filter
 
 
     const allRoutinesForDay = [...scheduledRoutines, ...addedRoutines]
@@ -365,14 +407,25 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
       const startMin = timeToMinutes(routine.startTime)
       const startDisp = new Date(`2000-01-01T${routine.startTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
       
-      // Use provided endTime if available, otherwise calculate from habits and tasks
-      let endTimeStr: string
-      if (routine.endTime) {
-        endTimeStr = new Date(`2000-01-01T${routine.endTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+      // Determine intended duration (use stored durationMinutes if available)
+      let intendedDurationMinutes: number;
+      if (routine.durationMinutes !== undefined) {
+        intendedDurationMinutes = routine.durationMinutes;
+      } else if (routine.endTime) {
+        const endMin = timeToMinutes(routine.endTime);
+        intendedDurationMinutes = Math.max(5, endMin - startMin);
       } else {
-        const total = allRoutineItems.reduce((s, item) => s + (item.duration || 30), 0)
-        endTimeStr = minutesToTime(startMin + total)
+        intendedDurationMinutes = allRoutineItems.reduce((s, item) => s + (item.duration || 30), 0);
       }
+
+    // Determine end time: prefer modification.endTime (clipped), then routine.endTime, then calculate
+      let endTimeStr: string;
+      if (routine.endTime) {
+        endTimeStr = formatDisplayTime(routine.endTime);
+      } else {
+        const total = allRoutineItems.reduce((s, item) => s + (item.duration || 30), 0);
+        endTimeStr = minutesToTime(startMin + total);
+}
       
       events.push({
         id: `routine-${routine.id}`,

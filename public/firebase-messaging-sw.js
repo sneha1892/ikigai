@@ -21,8 +21,38 @@ messaging.onBackgroundMessage((payload) => {
     icon: '/ikigai-logo.png',
     badge: '/ikigai-logo.png',
     tag: 'ikigai-notification',
-    requireInteraction: true
+    requireInteraction: true,
+    data: {
+      url: payload.data?.url || '/'  // Add URL data to notification
+    }
   }
 
   self.registration.showNotification(notificationTitle, notificationOptions)
+})
+
+// Add notification click handler
+self.addEventListener('notificationclick', (event) => {
+  console.log('Notification clicked:', event)
+  
+  event.notification.close()  // Close the notification
+  
+  // Get the URL to open (default to app root)
+  const urlToOpen = event.notification.data?.url || '/'
+  
+  // This handles opening the app or focusing an existing window
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Check if there's already a window open
+        for (const client of clientList) {
+          if (client.url.includes(self.registration.scope) && 'focus' in client) {
+            return client.focus()
+          }
+        }
+        // If no window is open, open a new one
+        if (clients.openWindow) {
+          return clients.openWindow(urlToOpen)
+        }
+      })
+  )
 })

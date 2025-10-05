@@ -5,6 +5,7 @@
 - Added habits have independent mark done
 - Removed the option to mark habits done in future dates
 - Start time input option is added in add from library. 
+- Notification to dayplan
 
 ## v1.1.0
 - New 3-page layout: Habits & Tasks, Day Plan, Goals

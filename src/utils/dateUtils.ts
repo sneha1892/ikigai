@@ -9,7 +9,12 @@ export const getDateString = (date: Date): string => {
   return date.toISOString().split('T')[0]
 }
 
-// src/utils/time.ts
+export const minutesTo24Hour = (minutes: number): string => {
+  const h = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+};
+
 export const timeToMinutes = (timeStr: string): number => {
   if (!timeStr) return 0
   if (timeStr.includes(' ')) {
@@ -23,7 +28,6 @@ export const timeToMinutes = (timeStr: string): number => {
   const [hours, minutes] = timeStr.split(':').map(Number)
   return (hours || 0) * 60 + (minutes || 0)
 }
-
 
 /**
  * Get a date from a date string

@@ -30,6 +30,7 @@ export interface Routine {
   taskIds?: string[] // Add support for tasks in routines
   startTime: string // reference Task.id of habits
   endTime?: string | null // optional end time, if not provided duration is calculated from habits and tasks
+  durationMinutes?: number;
   color: string
   isActive?: boolean
   createdAt?: Date
