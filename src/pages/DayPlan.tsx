@@ -407,17 +407,6 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
       const startMin = timeToMinutes(routine.startTime)
       const startDisp = new Date(`2000-01-01T${routine.startTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
       
-      // Determine intended duration (use stored durationMinutes if available)
-      let intendedDurationMinutes: number;
-      if (routine.durationMinutes !== undefined) {
-        intendedDurationMinutes = routine.durationMinutes;
-      } else if (routine.endTime) {
-        const endMin = timeToMinutes(routine.endTime);
-        intendedDurationMinutes = Math.max(5, endMin - startMin);
-      } else {
-        intendedDurationMinutes = allRoutineItems.reduce((s, item) => s + (item.duration || 30), 0);
-      }
-
     // Determine end time: prefer modification.endTime (clipped), then routine.endTime, then calculate
       let endTimeStr: string;
       if (routine.endTime) {

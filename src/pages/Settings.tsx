@@ -542,11 +542,11 @@ function Settings() {
             lineHeight: '1.5'
           }}>
             <li style={{ marginBottom: '4px' }}>New 3-page layout: Habits & Tasks, Day Plan, Goals</li>
-            <li style={{ marginBottom: '4px' }}>Multi-day habit checklist view — thanks Divya</li>
-            <li style={{ marginBottom: '4px' }}>Day Plan with routines + improved UI — thanks Arun</li>
-            <li style={{ marginBottom: '4px' }}>Routines now support both habits and tasks</li>
-            <li style={{ marginBottom: '4px' }}>Back button in pop-ups returns to previous page (no exit) — thanks Saj</li>
-            <li style={{ marginBottom: '4px' }}>Light/Dark theme toggle (beta; some issues remain)</li>
+            <li style={{ marginBottom: '4px' }}>Indicator for Today</li>
+            <li style={{ marginBottom: '4px' }}>Removed the option to mark habits done in future dates</li>
+            <li style={{ marginBottom: '4px' }}>Added habits have independent mark done</li>
+            <li style={{ marginBottom: '4px' }}>Start time input option is added in add from library</li>
+            <li style={{ marginBottom: '4px' }}>Notification will now open the app</li>
             <li style={{ marginBottom: '0px' }}>General performance fixes and optimizations</li>
           </ul>
         </div>
