@@ -525,7 +525,7 @@ function Settings() {
             color: colors.text.primary,
             margin: 0
           }}>
-            What's New in v1.1.0
+            What's New in v1.1.1, released on 06th October 2025
           </h2>
         </div>
         
@@ -547,6 +547,7 @@ function Settings() {
             <li style={{ marginBottom: '4px' }}>Added habits have independent mark done</li>
             <li style={{ marginBottom: '4px' }}>Start time input option is added in add from library</li>
             <li style={{ marginBottom: '4px' }}>Notification will now open the app</li>
+            <li style={{ marginBottom: '4px' }}>Goal page revamp</li>
             <li style={{ marginBottom: '0px' }}>General performance fixes and optimizations</li>
           </ul>
         </div>
