@@ -8,7 +8,9 @@ import RoutineModal from '../components/RoutineModal'
 import AddFromLibraryModal from '../components/AddFromLibraryModal'
 import type { Task, UserStats, Goal, Routine, DailyModification } from '../types'
 import { nanoid } from 'nanoid'
-import { minutesTo24Hour } from '../utils/dateUtils'
+import { minutesTo24Hour, extractOriginalTaskId } from '../utils/dateUtils'
+import VoiceMicButton from '../components/VoiceMicButton';
+import { toastService } from '../services/toastService';
 
 interface DayPlanProps {
   tasks: Task[]
@@ -61,6 +63,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
   const [dayStartTime, setDayStartTime] = useState<string>('07:30')
   const [hoveredFreeSlotId, setHoveredFreeSlotId] = useState<string | null>(null)
   const [showAddFromLibrary, setShowAddFromLibrary] = useState(false)
+  const [unscheduledExpanded, setUnscheduledExpanded] = useState(true)
 
   const isFutureDate = (date: Date): boolean => {
     const today = new Date();
@@ -71,7 +74,42 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
   };
   const isFuture = isFutureDate(selectedDate)
 
+    // Voice assistant handler
+  // Voice Assistant Handler — uses DayPlan's props, not useFirestore
+  const handleVoiceFunctionCall = async (call: any) => {
+    try {
+      if (call.name === 'createTask') {
+        const { name, pillar, duration = 30, repeatFrequency = 'daily', customDays } = call.arguments;
 
+        const newTask: Omit<Task, 'id' | 'completed' | 'createdAt'> = {
+          name,
+          pillar,
+          icon: 'circle',
+          completed: false,
+          hasReminder: false,
+          repeatFrequency,
+          ...(customDays && { customDays }),
+          duration,
+        };
+
+        onAddTask(newTask); // ✅ Use prop, not useFirestore
+        toastService.success(`✅ Added: ${name}`);
+      } 
+      else if (call.name === 'completeTask') {
+        // For habits, completion is date-based
+        const taskId = call.arguments.taskId;
+        const today = selectedDate.toISOString().split('T')[0]; // Use selected date, not just "today"
+        onToggleTask(taskId, today); // ✅ Use prop
+        toastService.success('✅ Completed!');
+      }
+      else if (call.name === 'rescheduleTask') {
+        toastService.success('🔄 Rescheduling (coming soon)');
+      }
+    } catch (err) {
+      console.error('Voice action failed:', err);
+      toastService.success('❌ Voice command failed');
+    }
+  };
   
   // Click outside to close menus
   useEffect(() => {
@@ -461,7 +499,14 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
 
     const allTasksForDay = [...scheduledTasks, ...addedTasks]
 
-    const sortedTasks = allTasksForDay.sort((a, b) => timeToMinutes(a.reminderTime!) - timeToMinutes(b.reminderTime!))
+    const sortedTasks = allTasksForDay.sort((a, b) => {
+      // First sort by completion status (uncompleted first)
+      if (a.completed !== b.completed) {
+        return a.completed ? 1 : -1
+      }
+      // Then by time
+      return timeToMinutes(a.reminderTime!) - timeToMinutes(b.reminderTime!)
+    })
     sortedTasks.forEach((task, idx) => {
       // For habits, check completion based on selected date
       let taskForDay: Task = task;
@@ -929,31 +974,18 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                           }
                         }}
                         onEdit={handleEditTask} 
-                        onDelete={onDeleteTask} 
+                        onDelete={(taskId) => {
+                          const originalId = extractOriginalTaskId(taskId, dailyModifications);
+                          onDeleteTask(originalId);
+                        }}
                         onSkip={(taskId) => {
                           if (!onAddModification) return;
 
-                          let originalId = taskId;
-                          let instanceId: string | undefined;
-
-                          // Handle unscheduled (shouldn't happen here, but safe)
-                          if (taskId.startsWith('unsched-')) {
-                            originalId = taskId.split('-')[1];
-                          }
-                          // Handle mod-prefixed fallback IDs
-                          else if (taskId.startsWith('mod-')) {
-                            const parts = taskId.split('-');
-                            originalId = parts[parts.length - 1];
-                          }
-                          // Handle raw nanoid instance IDs (most common for added tasks)
-                          else {
-                            const mod = dailyModifications.find(m => m.instanceId === taskId);
-                            if (mod) {
-                              originalId = mod.itemId;
-                              instanceId = mod.instanceId;
-                            }
-                            // else: assume it's a real scheduled task ID → originalId = taskId
-                          }
+                          const originalId = extractOriginalTaskId(taskId, dailyModifications);
+                          
+                          // For added instances, we need to find the modification to get instanceId
+                          const modification = dailyModifications.find(m => m.instanceId === taskId);
+                          const instanceId = modification?.instanceId;
 
                           onAddModification({
                             date: selectedDate.toISOString().split('T')[0],
@@ -962,7 +994,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                             ...(instanceId && { instanceId }), // only include if it exists
                             modification: { status: 'skipped' }
                           });
-}}
+                        }}
                         showTime={false} 
                         hideTypePill 
                         variant="flat"
@@ -978,11 +1010,38 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                           padding: '12px', 
                           border: `1px solid ${colors.borderSubtle}` 
                         }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: colors.text.primary }}>
-                            Unscheduled Tasks
+                          <div 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between',
+                              cursor: 'pointer',
+                              marginBottom: unscheduledExpanded ? 8 : 0
+                            }}
+                            onClick={() => setUnscheduledExpanded(!unscheduledExpanded)}
+                          >
+                            <div style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary }}>
+                              Unscheduled Tasks ({event.unscheduledHabits.length})
+                            </div>
+                            <svg 
+                              width="16" 
+                              height="16" 
+                              viewBox="0 0 24 24" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="2"
+                              style={{
+                                transform: unscheduledExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.2s ease',
+                                color: colors.text.secondary
+                              }}
+                            >
+                              <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {event.unscheduledHabits.map(habit => (
+                          {unscheduledExpanded && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {event.unscheduledHabits.map(habit => (
                               <TaskItem
                                 key={habit.id}
                                 task={habit}
@@ -1009,11 +1068,12 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                                   onToggleTask(originalId, dateStr);
                                 }}
                                 onEdit={handleEditTask}
-                                onDelete={onDeleteTask}
+                                onDelete={(taskId) => {
+                                  const originalId = extractOriginalTaskId(taskId, dailyModifications);
+                                  onDeleteTask(originalId);
+                                }}
                                 onSkip={(taskId) => {
-                                  const originalId = taskId.startsWith('unsched-')
-                                    ? taskId.split('-')[1]
-                                    : taskId;
+                                  const originalId = extractOriginalTaskId(taskId, dailyModifications);
                                   if (onAddModification) {
                                     onAddModification({
                                       date: selectedDate.toISOString().split('T')[0],
@@ -1028,7 +1088,8 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                                 variant="flat"
                               />
                             ))}
-                          </div>
+                            </div>
+                          )}
                         </div>
                   ) :(
                     <div
@@ -1113,6 +1174,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
         )}
       </div>
 
+      <VoiceMicButton onFunctionCall={handleVoiceFunctionCall} />
       {/* FAB with speed-dial */}
       <div ref={speedDialRef} style={{ position: 'fixed', bottom: '100px', right: '20px', zIndex: 1000 }}>
         {speedDialOpen && (

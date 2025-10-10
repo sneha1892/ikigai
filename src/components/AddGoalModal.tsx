@@ -8,8 +8,12 @@ interface AddGoalModalProps {
   isOpen: boolean
   onClose: () => void
   onAddGoal: (goal: Omit<Goal, 'id' | 'createdAt'>) => void
-  pillar: PillarType
+  onEditGoal?: (goalId: string, goal: Omit<Goal, 'id' | 'createdAt'>) => void
+  onDeleteGoal?: (goalId: string) => void
+  onLinkHabits?: (goalId: string, habitIds: string[]) => void
+  pillar?: PillarType
   editingGoal?: Goal
+  availableHabits?: Array<{ id: string; title: string; pillar: PillarType }>
 }
 
 // Goal suggestions for each pillar
@@ -37,14 +41,16 @@ const GOAL_SUGGESTIONS = {
 }
 
 
-function AddGoalModal({ isOpen, onClose, onAddGoal, pillar, editingGoal }: AddGoalModalProps) {
+function AddGoalModal({ isOpen, onClose, onAddGoal, onEditGoal, onDeleteGoal, onLinkHabits, pillar, editingGoal, availableHabits = [] }: AddGoalModalProps) {
   const { colors } = useTheme()
   const [title, setTitle] = useState('')
   const [targetStatus, setTargetStatus] = useState('')
   const [currentStatus, setCurrentStatus] = useState('')
+  const [selectedPillar, setSelectedPillar] = useState<PillarType>(pillar || 'mental')
+  const [selectedHabits, setSelectedHabits] = useState<string[]>([])
 
-  const pillarConfig = PILLAR_CONFIGS[pillar]
-  const suggestion = GOAL_SUGGESTIONS[pillar]
+  const pillarConfig = PILLAR_CONFIGS[selectedPillar]
+  const suggestion = GOAL_SUGGESTIONS[selectedPillar]
 
   // Back button navigation - close modal when back button is pressed
   // Use higher priority (10) since this modal can be nested inside QuickAddModal
@@ -71,7 +77,7 @@ function AddGoalModal({ isOpen, onClose, onAddGoal, pillar, editingGoal }: AddGo
 
     const goalData: Omit<Goal, 'id' | 'createdAt'> = {
       title: title.trim(),
-      pillar,
+      pillar: selectedPillar,
       initialStatus: currentStatus.trim() || 'Starting point',
       targetStatus: targetStatus.trim() || title.trim(),
       currentStatus: currentStatus.trim() || 'Starting point',
@@ -79,8 +85,21 @@ function AddGoalModal({ isOpen, onClose, onAddGoal, pillar, editingGoal }: AddGo
       isActive: true
     }
 
-    onAddGoal(goalData)
-    // Don't call handleClose() here - let the parent handle closing
+    if (editingGoal && onEditGoal) {
+      onEditGoal(editingGoal.id, goalData)
+      // Link habits to the goal
+      if (onLinkHabits && selectedHabits.length > 0) {
+        onLinkHabits(editingGoal.id, selectedHabits)
+      }
+      // Close modal after editing
+      onClose()
+    } else {
+      onAddGoal(goalData)
+      // For new goals, we'll need to link habits after the goal is created
+      // This will be handled in the parent component
+      // Close modal after adding
+      onClose()
+    }
   }
 
   const handleClose = () => {
@@ -88,6 +107,15 @@ function AddGoalModal({ isOpen, onClose, onAddGoal, pillar, editingGoal }: AddGo
     setTargetStatus('')
     setCurrentStatus('')
     onClose()
+  }
+
+  const handleDelete = () => {
+    if (editingGoal && onDeleteGoal) {
+      if (confirm('Are you sure you want to delete this goal? This action cannot be undone.')) {
+        onDeleteGoal(editingGoal.id)
+        onClose()
+      }
+    }
   }
 
   if (!isOpen) return null
@@ -143,7 +171,7 @@ function AddGoalModal({ isOpen, onClose, onAddGoal, pillar, editingGoal }: AddGo
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'space-between',
           marginBottom: '16px'
         }}>
           <h2 style={{
@@ -152,10 +180,36 @@ function AddGoalModal({ isOpen, onClose, onAddGoal, pillar, editingGoal }: AddGo
             fontWeight: '600',
             margin: 0,
             textAlign: 'center',
-            letterSpacing: '-0.2px'
+            letterSpacing: '-0.2px',
+            flex: 1
           }}>
-            Add Goal
+            {editingGoal ? 'Edit Goal' : 'Add Goal'}
           </h2>
+          {editingGoal && onDeleteGoal && (
+            <button
+              onClick={handleDelete}
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: 'transparent',
+                border: 'none',
+                color: '#ef4444',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Delete goal"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="3,6 5,6 21,6"/>
+                <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                <line x1="10" y1="11" x2="10" y2="17"/>
+                <line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Motivational Message */}
@@ -171,6 +225,104 @@ function AddGoalModal({ isOpen, onClose, onAddGoal, pillar, editingGoal }: AddGo
         </p>
 
         <form onSubmit={handleSubmit}>
+          {/* Pillar Selection - Show if no pillar provided OR if editing */}
+          {(!pillar || editingGoal) && (
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: colors.text.primary,
+                marginBottom: '12px'
+              }}>
+                Choose Health Pillar
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+                {Object.entries(PILLAR_CONFIGS).map(([pillarKey, config]) => (
+                  <button
+                    key={pillarKey}
+                    type="button"
+                    onClick={() => setSelectedPillar(pillarKey as PillarType)}
+                    style={{
+                      padding: '16px',
+                      borderRadius: '12px',
+                      border: `2px solid ${selectedPillar === pillarKey ? config.color : colors.borderSubtle}`,
+                      backgroundColor: selectedPillar === pillarKey ? config.color + '20' : colors.surface,
+                      color: colors.text.primary,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div style={{
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      backgroundColor: config.color
+                    }} />
+                    {config.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Habit Selection - Only show if habits are available */}
+          {availableHabits.length > 0 && (
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: colors.text.primary,
+                marginBottom: '12px'
+              }}>
+                Add Habits to This Goal
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                {availableHabits
+                  .filter(habit => habit.pillar === selectedPillar)
+                  .map(habit => (
+                    <label key={habit.id} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      backgroundColor: selectedHabits.includes(habit.id) ? colors.primary + '20' : colors.surface,
+                      border: `1px solid ${selectedHabits.includes(habit.id) ? colors.primary : colors.borderSubtle}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedHabits.includes(habit.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedHabits(prev => [...prev, habit.id])
+                          } else {
+                            setSelectedHabits(prev => prev.filter(id => id !== habit.id))
+                          }
+                        }}
+                        style={{ margin: 0 }}
+                      />
+                      <span style={{
+                        color: colors.text.primary,
+                        fontSize: '14px',
+                        fontWeight: '500'
+                      }}>
+                        {habit.title}
+                      </span>
+                    </label>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {/* Goal Title - Main Input with prominent styling */}
           <div style={{ marginBottom: '24px' }}>
             <input

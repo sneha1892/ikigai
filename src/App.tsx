@@ -13,13 +13,19 @@ import { useFirestore } from './hooks/useFirestore'
 import { notificationService } from './services/notificationService'
 import { toastService } from './services/toastService'
 import ToastContainer from './components/ToastContainer'
+// Voice UI removed
+// import VoiceInput from './components/VoiceInput'
+// import { aiService } from './services/aiService'
 import type { Task, QuizResults, Goal } from './types'
+// import type { VoiceResponse } from './types/ai'
 import './App.css'
 
 // Main authenticated app component
 function AuthenticatedApp() {
   const { onboardingState, onboardingLoading, completeOnboarding, skipOnboarding } = useAuth()
-  const { tasks, goals, routines, dailyModifications, userStats, loading, addTask, updateTask, deleteTask, toggleTask, addGoal, addRoutine, updateRoutine, deleteRoutine, addModification } = useFirestore()
+  const { tasks, goals, routines, dailyModifications, userStats, loading, addTask, updateTask, deleteTask, toggleTask, addGoal, updateGoal, deleteGoal, addRoutine, updateRoutine, deleteRoutine, addModification } = useFirestore()
+
+  // Voice AI wiring removed
   const { colors } = useTheme()
   const [currentPage, setCurrentPage] = useState<'habits-tasks' | 'day-plan' | 'goals'>('day-plan') // Default to center page
   const [showSettings, setShowSettings] = useState(false)
@@ -68,6 +74,28 @@ function AuthenticatedApp() {
       toastService.error('Failed to add goal', 'Please try again.')
     }
   }
+
+  const handleEditGoal = async (goalId: string, goalData: Omit<Goal, 'id' | 'createdAt'>) => {
+    try {
+      await updateGoal(goalId, goalData)
+      toastService.success('Goal updated successfully!', `"${goalData.title}" has been updated.`)
+    } catch (error) {
+      console.error('Failed to edit goal:', error)
+      toastService.error('Failed to edit goal', 'Please try again.')
+    }
+  }
+
+  const handleDeleteGoal = async (goalId: string) => {
+    try {
+      await deleteGoal(goalId)
+      toastService.success('Goal deleted', 'The goal has been removed from your list.')
+    } catch (error) {
+      console.error('Failed to delete goal:', error)
+      toastService.error('Failed to delete goal', 'Please try again.')
+    }
+  }
+
+  // Voice command handlers removed
 
   const handleEditTask = async (taskId: string, taskData: Omit<Task, 'id' | 'completed' | 'createdAt'>) => {
     try {
@@ -243,7 +271,10 @@ function AuthenticatedApp() {
           <Goals 
             tasks={tasks}
             goals={goals}
-            onAddGoal={addGoal}
+            onAddGoal={handleAddGoal}
+            onEditGoal={handleEditGoal}
+            onDeleteGoal={handleDeleteGoal}
+            onEditTask={handleEditTask}
           />
         )
       
@@ -283,10 +314,10 @@ function AuthenticatedApp() {
         currentPage={currentPage} 
         onPageChange={setCurrentPage}
       />
-      <ToastContainer />
-    </div>
-  )
-}
+        <ToastContainer />
+      </div>
+    )
+  }
 
 // App router component that handles authentication
 function AppRouter() {

@@ -129,6 +129,11 @@ export function useFirestore() {
     try {
       await firestoreAddTask(user.uid, {
         ...taskData,
+        // sanitize undefined optionals for Firestore
+        challengeDuration: taskData.challengeDuration ?? null,
+        reminderTime: taskData.reminderTime ?? null,
+        customDays: taskData.customDays ?? null,
+        duration: taskData.duration ?? null,
         completed: false,
         createdAt: new Date()
       })

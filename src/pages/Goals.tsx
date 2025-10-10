@@ -1,4 +1,4 @@
-  import { useMemo, useState, useCallback } from 'react'
+  import { useMemo, useState, useCallback, useEffect } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { Card } from '../components/ui/Card'
 import { typography, components, radius } from '../styles/design-system'
@@ -34,6 +34,9 @@ import { calculateHabitStreak, calculateHabitCoins } from '../utils/dateUtils'
     tasks: Task[]
     goals?: Goal[]
     onAddGoal?: (goal: Omit<Goal, 'id' | 'createdAt'>) => void
+    onEditGoal?: (goalId: string, goal: Omit<Goal, 'id' | 'createdAt'>) => void
+    onDeleteGoal?: (goalId: string) => void
+    onEditTask?: (taskId: string, task: Omit<Task, 'id' | 'completed' | 'createdAt'>) => void
   }
 
   interface PillarWithGoals {
@@ -45,9 +48,17 @@ import { calculateHabitStreak, calculateHabitCoins } from '../utils/dateUtils'
   }
 
   // GoalCard Component (No change needed here for the layout fix, but kept for context)
-const GoalCard: React.FC<{ goal: Goal, pillarColor: string, tasks: Task[], colors: any, shadows: any }> = 
-  ({ goal, pillarColor, tasks, colors }) => {
+const GoalCard: React.FC<{ 
+  goal: Goal, 
+  pillarColor: string, 
+  tasks: Task[], 
+  colors: any, 
+  shadows: any,
+  onEdit?: (goal: Goal) => void,
+  onDelete?: (goalId: string) => void
+}> = ({ goal, pillarColor, tasks, colors, onEdit, onDelete }) => {
     const [isExpanded, setIsExpanded] = useState(false)
+    const [showMenu, setShowMenu] = useState(false)
     const goalHabits = useMemo(() => tasks.filter(task => task.goalId === goal.id), [tasks, goal.id])
     const habitsCount = goalHabits.length
     
@@ -56,6 +67,19 @@ const GoalCard: React.FC<{ goal: Goal, pillarColor: string, tasks: Task[], color
     const todayTotalHabits = habitsCount
     
     const toggleExpand = useCallback(() => setIsExpanded(prev => !prev), [])
+    const toggleMenu = useCallback((e: React.MouseEvent) => {
+      e.stopPropagation()
+      setShowMenu(prev => !prev)
+    }, [])
+
+    // Close menu when clicking outside
+    useEffect(() => {
+      const handleClickOutside = () => setShowMenu(false)
+      if (showMenu) {
+        document.addEventListener('click', handleClickOutside)
+        return () => document.removeEventListener('click', handleClickOutside)
+      }
+    }, [showMenu])
 
   return (
     <Card
@@ -106,15 +130,120 @@ const GoalCard: React.FC<{ goal: Goal, pillarColor: string, tasks: Task[], color
             </div>
           </div>
           
-          {/* Toggle Icon */}
-          <ChevronDownIcon 
-            style={{
-              marginLeft: '12px',
-              color: colors.text.secondary,
-              transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: 'transform 0.3s ease'
-            }}
-          />
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
+            {(onEdit || onDelete) && (
+              <>
+                <button
+                  onClick={toggleMenu}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: showMenu ? colors.primary + '20' : 'transparent',
+                    border: 'none',
+                    color: colors.text.tertiary,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title="More options"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="1"/>
+                    <circle cx="12" cy="5" r="1"/>
+                    <circle cx="12" cy="19" r="1"/>
+                  </svg>
+                </button>
+                
+                {/* Dropdown Menu */}
+                {showMenu && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '40px',
+                    right: '0',
+                    backgroundColor: colors.surface,
+                    border: `1px solid ${colors.borderSubtle}`,
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                    zIndex: 1000,
+                    minWidth: '120px',
+                    overflow: 'hidden'
+                  }}>
+                    {onEdit && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onEdit(goal)
+                          setShowMenu(false)
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          border: 'none',
+                          background: 'transparent',
+                          color: colors.text.primary,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '14px',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                        Edit
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (window.confirm('Are you sure you want to delete this goal?')) {
+                            onDelete(goal.id)
+                          }
+                          setShowMenu(false)
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          border: 'none',
+                          background: 'transparent',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '14px',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="3,6 5,6 21,6"/>
+                          <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                        </svg>
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+            
+            {/* Toggle Icon */}
+            <ChevronDownIcon 
+              style={{
+                marginLeft: '4px',
+                color: colors.text.secondary,
+                transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.3s ease'
+              }}
+            />
+          </div>
         </div>
 
         {/* Habits List (Collapsible Content) */}
@@ -205,12 +334,16 @@ const GoalCard: React.FC<{ goal: Goal, pillarColor: string, tasks: Task[], color
   function Goals({ 
     tasks, 
     goals = [], 
-    onAddGoal = () => {} 
+    onAddGoal = () => {},
+    onEditGoal = () => {},
+    onDeleteGoal = () => {},
+    onEditTask = () => {}
   }: GoalsProps) {
     const { colors, shadows } = useTheme()
     const [addGoalModalOpen, setAddGoalModalOpen] = useState(false)
     const [selectedPillarForAdd, setSelectedPillarForAdd] = useState<PillarType | null>(null)
     const [activePillar, setActivePillar] = useState<PillarType>('mental')
+    const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
     
     const pillarsWithGoals = useMemo((): PillarWithGoals[] => {
       const pillars: PillarType[] = ['mental', 'physical', 'social', 'intellectual']
@@ -232,13 +365,18 @@ const GoalCard: React.FC<{ goal: Goal, pillarColor: string, tasks: Task[], color
       [activePillar, pillarsWithGoals]
     )
 
-    const handleAddGoal = (pillar: PillarType) => {
-      setSelectedPillarForAdd(pillar)
+    const handleAddGoal = (pillar?: PillarType) => {
+      setSelectedPillarForAdd(pillar || null)
       setAddGoalModalOpen(true)
     }
 
     const handleGoalSubmit = (goalData: Omit<Goal, 'id' | 'createdAt'>) => {
-      onAddGoal(goalData)
+      if (editingGoal) {
+        onEditGoal(editingGoal.id, goalData)
+        setEditingGoal(null)
+      } else {
+        onAddGoal(goalData)
+      }
       setAddGoalModalOpen(false)
       setSelectedPillarForAdd(null)
     }
@@ -246,6 +384,34 @@ const GoalCard: React.FC<{ goal: Goal, pillarColor: string, tasks: Task[], color
     const handleCloseModal = () => {
       setAddGoalModalOpen(false)
       setSelectedPillarForAdd(null)
+      setEditingGoal(null)
+    }
+
+    const handleEditGoal = (goal: Goal) => {
+      setEditingGoal(goal)
+      setSelectedPillarForAdd(goal.pillar)
+      setAddGoalModalOpen(true)
+    }
+
+    const handleDeleteGoal = (goalId: string) => {
+      if (confirm('Are you sure you want to delete this goal? This action cannot be undone.')) {
+        onDeleteGoal(goalId)
+      }
+    }
+
+    const handleLinkHabits = async (goalId: string, habitIds: string[]) => {
+      try {
+        // Update habits to link them to the goal
+        for (const habitId of habitIds) {
+          const habit = tasks.find(t => t.id === habitId)
+          if (habit) {
+            // Update the habit to link it to the goal
+            await onEditTask(habitId, { ...habit, goalId })
+          }
+        }
+      } catch (error) {
+        console.error('Failed to link habits to goal:', error)
+      }
     }
     
     return (
@@ -389,6 +555,8 @@ const GoalCard: React.FC<{ goal: Goal, pillarColor: string, tasks: Task[], color
                 tasks={tasks}
                 colors={colors}
                 shadows={shadows}
+                onEdit={handleEditGoal}
+                onDelete={handleDeleteGoal}
               />
             ))
           )}
@@ -396,7 +564,7 @@ const GoalCard: React.FC<{ goal: Goal, pillarColor: string, tasks: Task[], color
 
         {/* Floating Action Button (FAB) */}
         <button
-          onClick={() => handleAddGoal(activePillar)}
+          onClick={() => handleAddGoal()}
           style={{
             position: 'fixed',
             right: '24px',
@@ -439,12 +607,21 @@ const GoalCard: React.FC<{ goal: Goal, pillarColor: string, tasks: Task[], color
         </button>
 
         {/* Add Goal Modal */}
-        {selectedPillarForAdd && (
+        {addGoalModalOpen && (
           <AddGoalModal
             isOpen={addGoalModalOpen}
             onClose={handleCloseModal}
             onAddGoal={handleGoalSubmit}
-            pillar={selectedPillarForAdd}
+            onEditGoal={onEditGoal}
+            onDeleteGoal={onDeleteGoal}
+            onLinkHabits={handleLinkHabits}
+            pillar={selectedPillarForAdd || undefined}
+            editingGoal={editingGoal || undefined}
+            availableHabits={tasks.filter(task => task.repeatFrequency && task.repeatFrequency !== 'once').map(task => ({
+              id: task.id,
+              title: task.name,
+              pillar: task.pillar
+            }))}
           />
         )}
       </div>

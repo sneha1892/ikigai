@@ -158,15 +158,18 @@ export const calculateHabitStreak = (completionDates: string[], challengeDuratio
   
   // Sort dates in ascending order
   const sortedDates = [...completionDates].sort()
-  const today = getDateString(new Date())
   
-  // Count consecutive days from the most recent completion
+  // Find the most recent completion date
+  const mostRecentCompletion = sortedDates[sortedDates.length - 1]
+  if (!mostRecentCompletion) {
+    return { current: 0, total: challengeDuration || 0 }
+  }
+  
+  // Count consecutive days from the most recent completion backwards
   let streak = 0
-  const todayDate = new Date(today + 'T00:00:00')
+  let checkDate = new Date(mostRecentCompletion + 'T00:00:00')
   
-  // Start from today and go backwards
-  let checkDate = new Date(todayDate)
-  
+  // Go backwards from the most recent completion
   while (true) {
     const checkDateString = getDateString(checkDate)
     if (sortedDates.includes(checkDateString)) {
@@ -192,4 +195,35 @@ export const calculateHabitCoins = (completionDates: string[]): number => {
  */
 export const isHabitCompletedOnDate = (habit: { completionDates?: string[] }, dateString: string): boolean => {
   return (habit.completionDates || []).includes(dateString)
+}
+
+/**
+ * Extract original task ID from various prefixed formats used in DayPlan
+ * Handles: unsched-{originalId}-{date}, mod-{modId}-{originalId}, instanceId lookups
+ */
+export const extractOriginalTaskId = (
+  taskId: string, 
+  dailyModifications?: Array<{ instanceId?: string; itemId: string }>
+): string => {
+  // Handle unscheduled habits: unsched-{originalId}-{date}
+  if (taskId.startsWith('unsched-')) {
+    return taskId.split('-')[1]
+  }
+  
+  // Handle modification prefixed IDs: mod-{modId}-{originalId}
+  if (taskId.startsWith('mod-')) {
+    const parts = taskId.split('-')
+    return parts[parts.length - 1] // Last segment is original ID
+  }
+  
+  // Handle raw instance IDs (nanoid) - need to look up in dailyModifications
+  if (dailyModifications) {
+    const modification = dailyModifications.find(m => m.instanceId === taskId)
+    if (modification) {
+      return modification.itemId
+    }
+  }
+  
+  // If no prefix, assume it's already the original ID
+  return taskId
 }

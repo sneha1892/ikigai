@@ -254,7 +254,7 @@ function HabitDayChecklistView({ habits, onToggleHabit, onEditHabit }: HabitDayC
   }
 
   return (
-    <div>
+    <div style={{ paddingBottom: '80px' }}>
       {/* Sticky header with day labels */}
       <div style={{
         position: 'sticky',
