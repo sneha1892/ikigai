@@ -1,11 +1,15 @@
-// src/services/voiceService.ts - WITH MANUAL COMMIT
+// src/services/voiceService.ts - WITH AUDIO PLAYBACK
 import { startAudioCapture, stopAudioCapture } from './audioCapture';
+import { initAudioPlayback, playAudioChunk, stopAudioPlayback, closeAudioPlayback } from './audioPlayback';
 
 let ws: WebSocket | null = null;
 let onFunctionCall: ((call: any) => void) | null = null;
 
 export const connectVoiceAssistant = (handleFunctionCall: (call: any) => void) => {
   onFunctionCall = handleFunctionCall;
+  
+  // Initialize audio playback
+  initAudioPlayback();
 
   return new Promise<void>((resolve, reject) => {
     ws = new WebSocket('ws://localhost:3001');
@@ -17,12 +21,43 @@ export const connectVoiceAssistant = (handleFunctionCall: (call: any) => void) =
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === 'function_call') {
-        onFunctionCall?.(data.payload);
-      } else if (data.type === 'error') {
+      
+      // Handle audio chunks from OpenAI
+      if (data.type === 'response.audio.delta' && data.delta) {
+        playAudioChunk(data.delta);
+      }
+      // Handle function calls from OpenAI
+      else if (data.type === 'response.function_call_arguments.done') {
+        try {
+          const args = typeof data.arguments === 'string' 
+            ? JSON.parse(data.arguments) 
+            : data.arguments;
+          
+          onFunctionCall?.({
+            name: data.name,
+            arguments: args,
+            callId: data.call_id,
+          });
+        } catch (err) {
+          console.error('Failed to parse function call arguments:', err);
+        }
+      } 
+      // Handle errors
+      else if (data.type === 'error') {
         console.error('Voice error:', data.message);
-      } else if (data.type === 'transcript') {
-        console.log('📝 Transcript:', data.text);
+      } 
+      // Handle transcripts
+      else if (data.type === 'response.audio_transcript.done') {
+        console.log('🤖 Assistant said:', data.transcript);
+      }
+      // Handle response created (prepare for new audio)
+      else if (data.type === 'response.created') {
+        console.log('🎙️ New response starting');
+        stopAudioPlayback(); // Clear any previous audio and reset for fast playback
+      }
+      // Handle response done
+      else if (data.type === 'response.audio.done') {
+        console.log('🔊 Audio response completed');
       }
     };
 
@@ -55,8 +90,10 @@ export const commitAudioBuffer = () => {
 
 export const stopVoiceAssistant = () => {
   stopAudioCapture();
+  stopAudioPlayback();
   if (ws) {
     ws.close();
     ws = null;
   }
+  closeAudioPlayback();
 };

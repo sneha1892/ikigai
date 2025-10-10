@@ -79,21 +79,37 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
   const handleVoiceFunctionCall = async (call: any) => {
     try {
       if (call.name === 'createTask') {
-        const { name, pillar, duration = 30, repeatFrequency = 'daily', customDays } = call.arguments;
+        const { name, pillar, startTime, duration = 30, repeatFrequency = 'daily', customDays, challengeDuration } = call.arguments;
+
+        // Calculate endTime if startTime is provided
+        let endTime: string | undefined;
+        if (startTime && duration) {
+          const [hours, minutes] = startTime.split(':').map(Number);
+          const startDate = new Date();
+          startDate.setHours(hours, minutes, 0, 0);
+          const endDate = new Date(startDate.getTime() + duration * 60000);
+          endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+        }
 
         const newTask: Omit<Task, 'id' | 'completed' | 'createdAt'> = {
           name,
           pillar,
           icon: 'circle',
           completed: false,
-          hasReminder: false,
+          hasReminder: startTime ? true : false, // Set hasReminder if time provided
           repeatFrequency,
           ...(customDays && { customDays }),
           duration,
+          ...(startTime && { startTime }),
+          ...(endTime && { endTime }),
+          ...(startTime && { reminderTime: startTime }), // 🔥 KEY FIX: Set reminderTime for day plan
+          ...(challengeDuration && { challengeDuration }), // AI can specify challenge
+          // Default challenge duration for daily/custom habits
+          ...(!challengeDuration && repeatFrequency !== 'once' && { challengeDuration: 7 }),
         };
 
         onAddTask(newTask); // ✅ Use prop, not useFirestore
-        toastService.success(`✅ Added: ${name}`);
+        toastService.success(`✅ Added: ${name}${startTime ? ` at ${startTime}` : ''}`);
       } 
       else if (call.name === 'completeTask') {
         // For habits, completion is date-based
@@ -102,12 +118,24 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
         onToggleTask(taskId, today); // ✅ Use prop
         toastService.success('✅ Completed!');
       }
+      else if (call.name === 'deleteTask') {
+        // Find task by name (case-insensitive)
+        const taskName = call.arguments.name.toLowerCase();
+        const taskToDelete = tasks.find(t => t.name.toLowerCase().includes(taskName));
+        
+        if (taskToDelete) {
+          onDeleteTask(taskToDelete.id);
+          toastService.success(`🗑️ Deleted: ${taskToDelete.name}`);
+        } else {
+          toastService.error('Task not found', `Could not find a task named "${call.arguments.name}"`);
+        }
+      }
       else if (call.name === 'rescheduleTask') {
         toastService.success('🔄 Rescheduling (coming soon)');
       }
     } catch (err) {
       console.error('Voice action failed:', err);
-      toastService.success('❌ Voice command failed');
+      toastService.error('Voice command failed', 'Please try again.');
     }
   };
   

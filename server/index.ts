@@ -25,18 +25,19 @@ wss.on('connection', (clientWs: WebSocket) => {
   let openaiReady = false;
   const audioBuffer: Buffer[] = [];
 
-  openaiWs = new WebSocket(OPENAI_WS_URL, {
+  const openaiWebSocket = new WebSocket(OPENAI_WS_URL, {
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
       'OpenAI-Beta': 'realtime=v1',
     },
   });
+  openaiWs = openaiWebSocket;
 
-  openaiWs.on('open', () => {
+  openaiWebSocket.on('open', () => {
     console.log('✅ Connected to OpenAI Realtime');
 
     // 🔥 CRITICAL FIX: Remove 'type' field - it's read-only!
-    openaiWs!.send(
+    openaiWebSocket.send(
       JSON.stringify({
         type: 'session.update',
         session: {
@@ -48,17 +49,37 @@ Help the user manage habits, tasks, and daily plans using the Four Pillars:
 - social: calling friends, family time, gratitude
 - intellectual: volunteering, creative hobbies, nature
 
+AVAILABLE ACTIONS:
+- Create new habits/tasks with createTask (ALWAYS set startTime and challengeDuration for habits)
+- Delete habits/tasks with deleteTask (when user says "delete", "remove", "get rid of")
+- Mark tasks complete with completeTask
+
+IMPORTANT: For daily/custom habits, ALWAYS set:
+- startTime (required for day plan scheduling)
+- challengeDuration (default: 7 days for most habits)
+
 ALWAYS use function calls to perform actions. Never assume.
-Ask for clarification if time, pillar, or frequency is missing.`,
+
+TIME EXTRACTION RULES:
+- When user says "at 10 am" → startTime: "10:00"
+- When user says "at 2:30 pm" → startTime: "14:30"
+- When user says "at 6 pm" → startTime: "18:00"
+- When user says "in the morning" → startTime: "09:00"
+- When user says "in the afternoon" → startTime: "14:00"
+- When user says "in the evening" → startTime: "18:00"
+- Always convert AM/PM to 24-hour format
+- If no time mentioned for a scheduled habit, ask for clarification
+
+Ask for clarification if time, pillar, or frequency is missing when creating tasks.`,
           input_audio_format: 'pcm16',
           output_audio_format: 'pcm16',
           voice: 'alloy',
-          temperature: 0.8,
+          temperature: 0.7,
           turn_detection: {
             type: 'server_vad',
             threshold: 0.5,
             prefix_padding_ms: 300,
-            silence_duration_ms: 500,
+            silence_duration_ms: 700,
           },
           tools: [
             {
@@ -77,9 +98,18 @@ Ask for clarification if time, pillar, or frequency is missing.`,
                     enum: ['mental', 'physical', 'social', 'intellectual'],
                     description: 'Which life pillar this task belongs to'
                   },
+                  startTime: {
+                    type: 'string',
+                    description: 'Start time in 24-hour format HH:MM (e.g., "10:00" for 10 AM, "14:30" for 2:30 PM). Extract from user speech like "at 10 am" or "at 2:30 pm".'
+                  },
                   duration: { 
                     type: 'number', 
                     description: 'Duration in minutes (default 30)' 
+                  },
+                  challengeDuration: {
+                    type: 'number',
+                    enum: [3, 7, 21, 66],
+                    description: 'Habit challenge duration in days. Default is 7 for most habits. Use 21 for medium-term goals, 66 for long-term habit formation.'
                   },
                   repeatFrequency: { 
                     type: 'string', 
@@ -110,6 +140,21 @@ Ask for clarification if time, pillar, or frequency is missing.`,
                 required: ['taskId'],
               },
             },
+            {
+              type: 'function',
+              name: 'deleteTask',
+              description: 'Delete a task or habit from the user\'s list. Use when user says "delete", "remove", or "get rid of" a habit.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  name: { 
+                    type: 'string',
+                    description: 'The name of the task/habit to delete. Match this with existing task names.'
+                  },
+                },
+                required: ['name'],
+              },
+            },
           ],
         },
       })
@@ -121,7 +166,7 @@ Ask for clarification if time, pillar, or frequency is missing.`,
     while (audioBuffer.length > 0) {
       const chunk = audioBuffer.shift()!;
       const base64 = chunk.toString('base64');
-      openaiWs!.send(
+      openaiWebSocket.send(
         JSON.stringify({
           type: 'input_audio_buffer.append',
           audio: base64,
@@ -148,7 +193,7 @@ Ask for clarification if time, pillar, or frequency is missing.`,
   });
 
   // Forward OpenAI messages → client
-  openaiWs.on('message', (data: string | Buffer) => {
+  openaiWebSocket.on('message', (data: string | Buffer) => {
     const msgStr = Buffer.isBuffer(data) ? data.toString('utf8') : data;
     if (!msgStr.trim()) return;
 
@@ -160,8 +205,15 @@ Ask for clarification if time, pillar, or frequency is missing.`,
       return;
     }
 
-    // 🔍 Log important events
-    console.log('📥 OpenAI Event:', msg.type);
+    // 🔍 Log important events (less verbose for audio deltas)
+    if (!msg.type.includes('audio.delta') && !msg.type.includes('audio_transcript.delta')) {
+      console.log('📥 OpenAI Event:', msg.type);
+    }
+
+    // 🔥 FORWARD ALL MESSAGES TO CLIENT (especially audio!)
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(msgStr);
+    }
 
     // Handle session updates
     if (msg.type === 'session.created' || msg.type === 'session.updated') {
@@ -188,6 +240,14 @@ Ask for clarification if time, pillar, or frequency is missing.`,
     // Handle conversation events
     if (msg.type === 'conversation.item.created') {
       console.log('💬 Item created:', msg.item?.type);
+      if (msg.item?.type === 'message') {
+        console.log('   Role:', msg.item?.role);
+      }
+    }
+    
+    // Handle response creation
+    if (msg.type === 'response.created') {
+      console.log('🎤 Response starting, status:', msg.response?.status);
     }
 
     // Handle transcriptions (for debugging)
@@ -195,44 +255,44 @@ Ask for clarification if time, pillar, or frequency is missing.`,
       console.log('📝 User said:', msg.transcript);
     }
 
-    // Handle function calls
+    // Handle function calls (for logging - already forwarded above)
     if (msg.type === 'response.function_call_arguments.done') {
       console.log('🔧 Function call received:', msg.name);
       console.log('   Arguments:', msg.arguments);
-      
-      try {
-        const args = typeof msg.arguments === 'string' 
-          ? JSON.parse(msg.arguments) 
-          : msg.arguments;
-
-        if (clientWs.readyState === WebSocket.OPEN) {
-          clientWs.send(
-            JSON.stringify({
-              type: 'function_call',
-              payload: {
-                name: msg.name,
-                arguments: args,
-                callId: msg.call_id,
-              },
-            })
-          );
-          console.log('✅ Forwarded function call to client');
-        }
-      } catch (parseErr) {
-        console.error('❌ Failed to parse function arguments:', msg.arguments);
-      }
     }
 
+    // Handle audio output
+    if (msg.type === 'response.audio.delta') {
+      // Only log first chunk to avoid spam
+      if (!msg._logged) {
+        console.log('🔊 Audio playback started');
+        msg._logged = true;
+      }
+    }
+    
     // Handle responses
     if (msg.type === 'response.done') {
       console.log('✅ Response completed');
-      if (msg.response?.output?.[0]?.content?.[0]?.transcript) {
-        console.log('🤖 Assistant said:', msg.response.output[0].content[0].transcript);
+      console.log('   Status:', msg.response?.status);
+      
+      // Try to find transcript in multiple locations
+      const output = msg.response?.output;
+      if (output && output.length > 0) {
+        for (const item of output) {
+          if (item.type === 'message' && item.content) {
+            for (const content of item.content) {
+              if (content.type === 'audio' && content.transcript) {
+                console.log('🤖 Assistant said:', content.transcript);
+                break;
+              }
+            }
+          }
+        }
       }
     }
   });
 
-  openaiWs.on('error', (err: Error) => {
+  openaiWebSocket.on('error', (err: Error) => {
     console.error('❌ OpenAI WebSocket error:', err.message);
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(
@@ -248,8 +308,8 @@ Ask for clarification if time, pillar, or frequency is missing.`,
   const cleanup = () => {
     openaiReady = false;
     audioBuffer.length = 0;
-    if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-      openaiWs.close();
+    if (openaiWebSocket && openaiWebSocket.readyState === WebSocket.OPEN) {
+      openaiWebSocket.close();
     }
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.close();
@@ -258,7 +318,7 @@ Ask for clarification if time, pillar, or frequency is missing.`,
   };
 
   clientWs.on('close', cleanup);
-  openaiWs.on('close', cleanup);
+  openaiWebSocket.on('close', cleanup);
 });
 
 const PORT = process.env.PORT || 3001;
