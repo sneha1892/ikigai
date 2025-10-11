@@ -4,18 +4,23 @@
 I'm building an Ikigai habit tracking app using React + Vite + Material Design CSS + Firebase. The app helps users improve their lives holistically using the Four Pillars of Well-being framework.
 
 ## CURRENT STATUS ✅
-- **Setup Complete**: Vite + React + TypeScript working
-- **Styling**: Custom Material Design CSS implemented (no Tailwind)
-- **Navigation**: Three-tab system (Home/Overview/Settings) with modern Lucide icons
-- **Structure**: Basic app shell and component structure created
-- **Next Phase**: Ready to build actual feature components
+- **App Shell**: React + Vite + TypeScript stable
+- **Styling**: Custom Material Design CSS (no Tailwind)
+- **Navigation**: Three primary pages — `Habits & Tasks`, `Day Plan`, `Goals` (+ `Settings` modal)
+- **Data Layer**: Firebase (Firestore + Auth) integrated via `useFirestore`
+- **Goals CRUD**: Add, edit, delete working; `AddGoalModal` includes pillar selector and habit linking
+- **Day Plan**: Unscheduled habits section fixed (no accidental deletes), collapsible, completed items sink
+- **Streak Logic**: Adjusted to count from most recent completion
+- **Notifications**: Reschedules when tasks change; clear/re-schedule on edit/delete
+- **Voice Assistant (Client)**: Temporarily removed to start fresh; server kept for secrets and future AI
 
 ## TECH STACK
 - **Frontend**: React 18 + TypeScript + Vite
 - **Styling**: Custom Material Design CSS (Dark Theme #121212)
 - **Icons**: Lucide React
-- **Backend**: Firebase (Firestore + Auth) - not yet implemented
-- **Deployment**: Firebase Hosting
+- **Backend**: Firebase (Firestore + Auth) with custom hooks
+- **Server (local)**: `server/index.ts` (Express) for AI key proxy (Deepgram/Gemini/OpenAI)
+- **Deployment**: Firebase Hosting (client) — server runs locally during development
 
 ## APP CONCEPT
 **Four Pillars of Well-being:**
@@ -31,25 +36,29 @@ I'm building an Ikigai habit tracking app using React + Vite + Material Design C
 - Four pillars overview dashboard
 - Progress reports and insights
 
-## CURRENT FILE STRUCTURE
+## CURRENT FILE STRUCTURE (high-level)
 ```
 src/
 ├── components/
-│   ├── Navigation.tsx ✅ (Complete)
-│   ├── ui/ (planned)
-│   ├── PillarCard.tsx (needed)
-│   ├── QuickAdd.tsx (needed)
-│   └── TaskItem.tsx (needed)
+│   ├── ToastContainer.tsx
+│   └── TopHeader.tsx, NewNavigation.tsx, TaskItem.tsx, etc.
+├── hooks/
+│   └── useFirestore.ts (CRUD for tasks, goals, routines, modifications)
 ├── pages/
-│   ├── Home.tsx (needed - daily task list)
-│   ├── Overview.tsx (needed - four pillars)
-│   └── Settings.tsx (needed - user settings)
+│   ├── DayPlan.tsx (timeline + unscheduled section)
+│   ├── HabitsAndTasks.tsx
+│   ├── Goals.tsx (goal CRUD + link habits)
+│   └── Settings.tsx (modal-style page)
 ├── services/
-│   └── firebase.ts (planned)
-├── types/
-│   └── index.ts (needs task/user interfaces)
-├── App.tsx ✅ (Basic shell with navigation)
-└── index.css ✅ (Material Design CSS)
+│   ├── notificationService.ts, toastService.ts, date utils, etc.
+│   └── (voice services temporarily removed to start fresh)
+├── App.tsx (router shell, page orchestration)
+└── index.css (Material Design CSS)
+
+server/
+├── index.ts (Express proxy for Deepgram/Gemini/OpenAI)
+├── package.json, tsconfig.json
+└── .env (kept local, ignored in git)
 ```
 
 ## MATERIAL DESIGN IMPLEMENTATION
@@ -70,26 +79,31 @@ Using custom CSS with proper Material Design specifications:
 
 ## NEXT DEVELOPMENT PHASES
 
-### Phase 1: Core Components (Current)
-- [ ] Home page with daily task list
-- [ ] Overview page with four pillar cards  
-- [ ] Basic task creation
-- [ ] Task completion functionality
+### Phase A: Stability and UX (current)
+- [x] Fix unscheduled habit deletion and instance ID handling
+- [x] Add edit/delete for Goals, pillar select in goal modal, link habits
+- [x] Improve visible FAB and checklist padding
+- [x] Streak logic correctness
+- [ ] Modal polish (close-after-update consistency across modals)
 
-### Phase 2: Enhanced Features
-- [ ] Quick Add modal with bottom sheet
-- [ ] Task editing capabilities
-- [ ] Local storage for persistence
+### Phase B: Clean Voice Reboot
+- [x] Remove client voice code to start fresh
+- [x] Keep `server/index.ts` and `.env` for secrets proxy
+- [ ] Re-introduce voice MVP with one path:
+  - Option 1: OpenAI Realtime (single vendor STT+LLM)
+  - Option 2: Deepgram (STT) + Gemini tool-calling (LLM)
+- [ ] Minimal UI mic with clear states and timeouts
+- [ ] Function-calls map to existing Firebase CRUD handlers
 
-### Phase 3: Firebase Integration
-- [ ] User authentication
-- [ ] Cloud data storage
-- [ ] Real-time sync
+### Phase C: Conversation & Personalization
+- [ ] Multi-turn clarifications (time, frequency, pillar)
+- [ ] Voice shortcuts and personalization settings
+- [ ] Malayalam STT/TTS slot (post-English MVP)
 
-### Phase 4: Advanced Features
-- [ ] Streaks and scoring system
-- [ ] Progress analytics
-- [ ] Reminders and notifications
+### Phase D: New Features
+- [ ] Step marker, water log
+- [ ] Mindfulness tab (gratitude, affirmations)
+- [ ] Reward system (fruits, coins, milestones)
 
 ## KEY CSS CLASSES AVAILABLE
 ```css
@@ -138,7 +152,7 @@ Please provide:
 4. Next steps
 ```
 
-## FIREBASE CONFIG (When Ready)
+## FIREBASE CONFIG (Reference)
 Create `src/services/firebase.ts` with:
 ```typescript
 import { initializeApp } from 'firebase/app';
@@ -159,6 +173,9 @@ export const db = getFirestore(app);
 # Start development server
 npm run dev
 
+# Start local voice server (secrets proxy)
+cd server && npm run dev
+
 # Install new dependencies
 npm install [package-name]
 
@@ -167,3 +184,4 @@ npm run build
 ```
 
 ---
+

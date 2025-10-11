@@ -2,8 +2,8 @@
 
 ## 1. App Name & Core Idea
 - **App Name**: Ikigai
-- **Core Idea**: Minimalist habit tracker that helps users improve their lives holistically using a balanced framework.
-- **Problem Solved**: Goes beyond a simple to‑do list by structuring habits around whole‑life improvement.
+- **Core Idea**: Building a system for the users to improve the quality of the life and productivity holistically
+- **Problem Solved**: Goes beyond a simple to‑do list by structuring habits around whole day plan to aid the goals across different pillars of life.
 
 ## 2. The Four Pillars of Well‑being
 - **Mental Health**: Meditation, reading, journaling, learning a new skill
@@ -12,19 +12,17 @@
 - **Intellectual & Purpose**: Volunteering, creative hobbies, time in nature
 
 ## 3. Main Features & Modules
-### Core Loop
-- Users add and manage tasks
-- Mark tasks complete to earn points and maintain a streak
-- Subtle animation on completion for satisfying feedback
+### Core Loop (current)
+- Add/manage tasks and goals (CRUD for both)
+- Mark tasks complete to earn points and maintain a streak (logic adjusted to recent-first)
+- Dayplan view to arrange the habits and routines for a day - added automatically as per the habit repeat frequency and can add/skip habits for the day as well
 
-### Task Management
-- **Quick Add**: Pop‑up/bottom sheet with prefilled fields: task name, reminder time, repeat frequency, pillar + icon
-- **Gamification**: Scores, milestones, streaks with instant feedback
-- **Categorization**: Assign tasks to one of the four pillars
-- **Reminders**:
-  - App‑level: daily check‑in reminder
-  - Task‑level: per‑task reminders in detailed edit view (optional)
-- **Report Page**: Long‑term progress: focused category, least focused, tasks completed/total, score, level, streak
+### Task & Goal Management
+- **Quick Add** (planned): bottom sheet for fast task creation
+- **Edit/Link**: Goals can link to existing habits; pillar selection in goal modal
+- **Categorization**: Assign to four pillars (Mental, Physical, Social, Intellectual)
+- **Reminders**: App-level check-in, per-task reminders; clear/reschedule on CRUD
+
 
 ## 4. Material Design Philosophy (Dark Theme)
 - Dark background around `#121212` with lighter surfaces for elevation
@@ -32,52 +30,102 @@
 - Bold, intentional typography (Roboto or similar)
 - Meaningful motion for feedback (ripple, fade‑in, completion micro‑animation)
 
-## 5. Page‑by‑Page Implementation
-### 5.1 Main Dashboard
-- Organized, clean, immediately informative
-- Streak & score as a card or chip; FAB as primary CTA for Quick Add
 
-Sample UI:
+## 5. Development Plan (Updated)
+### MVP (Now)
+- Stable CRUD (tasks, goals), streaks, notifications
+- Day Plan with unscheduled section; Goal modal with pillar + linking
 
-![Tasks view](./images/tasks-view.png)
 
-### 5.2 Quick Add Interface
-- Implement as a Bottom Sheet
-- Minimalist UI: top text field for task name (filled/outlined)
-- Pillar selection via chips or icon buttons
-- Time picker for reminder and simple repeat selector
-- Primary action button: Add
+**Near-Term Features:**
 
-Mock:
+- Floating mic button (FAB-style)
+- Press-and-hold or tap-to-toggle recording
+- Visual feedback: waveform animation, recording indicator
+- Transcription display in real-time
+- Cancel/Submit options
 
-![Quick Add](./images/quick-add.png)
+Conversational AI Integration
 
-### 5.3 Detailed Task View / Edit Page
-- Same bottom sheet pattern as Quick Add, prefilled with existing task details
+**Architecture**:
 
-### 5.4 Report Page
-- Clean, non‑overwhelming
-- Structure with cards: streaks, category breakdown, totals
-- Visualization: least‑focused category (text), stacked progress bar by pillar, simple line chart for trends
+- Streaming API calls for real-time responses
+- Context window management (last N messages)
+- System prompt with app structure knowledge
+- Function calling for CRUD operations
 
-Mock:
+**System Prompt Template**:
 
-![Report view draft](./images/report-view-draft.png)
+```
+You are a helpful assistant for Ikigai, a habit tracking app with 4 pillars:
+Mental, Physical, Social, and Intellectual health. Help users create habits,
+goals, and routines through natural conversation. Ask clarifying questions
+when needed. Available functions: addHabit(), addGoal(), addRoutine(),
+scheduleTask(), getHabits(), getGoals().
+```
 
-## 6. Development Plan (Hackathon‑friendly)
-### MVP (Must Have)
-- Frontend: React + mobile‑first
-- Backend: Firebase (Auth + Firestore)
-- Core logic: add/edit/delete tasks, complete tasks, basic streak + points
-- UI/UX: Dark theme; Four Pillars structure
+### 5.2 Conversation UI
 
-### Stretch Goals
-- Task‑level reminders
-- Simple AI keyword mapping for pillar/icon suggestions
-- Onboarding questionnaire to suggest starter habits
-- Deeper insights (graphs/trends)
-- Advanced gamification (broken streak handling, milestones)
-- Further AI features (summarization, smarter suggestions)
+**Design**:
+
+- Bottom sheet modal (expandable)
+- Chat-like interface (user messages, AI responses)
+- Voice + text input (hybrid mode)
+- Quick action buttons for common operations
+- Context pills showing current entities being discussed
+
+### 5.3 Multi-Turn Context Management
+
+**New File**: `src/services/conversationContext.ts`
+
+**Features**:
+
+- Track partial entities across turns
+- "I want to add a habit" → "What's the habit?" → "Meditation" → "What time?" → "7am"
+- Resume interrupted conversations
+- Clear context command
+
+### 5.4 Proactive Assistance
+
+**Enhancements**:
+
+- "You haven't completed your morning routine. Would you like to start now?"
+- "You're on a 5-day streak! Keep it up!"
+- "Reminder: Call to remind [voice call feature, future]"
+
+---
+
+## Phase 6: Advanced Voice Features
+
+### 6.1 Malayalam Language Support (Phase 2)
+
+**Files**: `src/services/speechService.ts`, `src/services/nlpService.ts`
+
+**Approach**:
+
+- Add Malayalam speech recognition
+- Bilingual NLP models
+- Code-switched support (English-Malayalam mix)
+- Cultural context in prompts
+
+
+### 6.2 Voice Settings & Personalization
+
+**Files**: `src/pages/Settings.tsx`
+
+**Options**:
+
+- Voice selection (if supported by browser)
+- Speech rate, pitch
+- Wake word preference (future: "Hey Ikigai")
+- Language selection (English now, Malayalam later slot)
+
+---
+
+### Stretch
+- Conversation mode: multi‑turn clarifications (time, frequency, pillar)
+- Personalization and shortcuts; Malayalam slot after English MVP
+- Reports/insights; expanded gamification
 
 ## 7. Next Steps for Discussion
 1. Detailed UX flows for task creation/editing/onboarding
