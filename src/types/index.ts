@@ -8,17 +8,17 @@ export interface Task {
   pillar: PillarType
   icon: string
   completed: boolean
-  reminderTime?: string
+  reminderTime?: string | null
   reminderDate?: string // ISO date string for "once" reminders (YYYY-MM-DD)
   repeatFrequency: RepeatFrequency
-  customDays?: string[] // ['monday', 'tuesday', etc.] for custom frequency
+  customDays?: string[] | null // ['monday', 'tuesday', etc.] for custom frequency
   hasReminder: boolean
   createdAt: Date
   completedAt?: Date
-  challengeDuration?: number // 3, 7, 21, or 66 days for habit challenges
+  challengeDuration?: number | null // 3, 7, 21, or 66 days for habit challenges
   completionDates?: string[] // ISO dates when habit was completed
   goalId?: string // Link habit to a goal
-  duration?: number // Duration in minutes (default: 30)
+  duration?: number | null // Duration in minutes (default: 30)
   startTime?: string // Start time (HH:MM format)
   endTime?: string // Calculated end time (HH:MM format)
 }

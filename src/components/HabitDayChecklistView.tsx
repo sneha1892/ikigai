@@ -47,7 +47,7 @@ function HabitDayChecklistView({ habits, onToggleHabit, onEditHabit }: HabitDayC
   }
 
   const renderHabitRow = (habit: Task) => {
-    const streak = calculateHabitStreak(habit.completionDates || [], habit.challengeDuration)
+    const streak = calculateHabitStreak(habit.completionDates || [], habit.challengeDuration ?? undefined)
     const coins = calculateHabitCoins(habit.completionDates || [])
 
     return (
@@ -189,7 +189,7 @@ function HabitDayChecklistView({ habits, onToggleHabit, onEditHabit }: HabitDayC
         {/* Day Checkboxes - no individual labels */}
         <div style={{ display: 'flex', gap: '8px' }}>
            {checklistDates.map(({ date, isToday, isFuture }) => {
-             const isActive = isHabitActiveOnDay(habit, date)
+             const isActive = isHabitActiveOnDay({ repeatFrequency: habit.repeatFrequency, ...(habit.customDays ? { customDays: habit.customDays } : {}) }, date)
              const isCompleted = isHabitCompletedOnDate(habit, date)
              // Allow unmarking if already completed, but prevent new future markings
              const isDisabled = !isActive || (isFuture && !isCompleted) 

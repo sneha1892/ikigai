@@ -268,7 +268,7 @@ const GoalCard: React.FC<{
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {goalHabits.map((habit) => {
                 const isHabit = Boolean(habit.challengeDuration || habit.repeatFrequency !== 'once')
-                const streak = calculateHabitStreak(habit.completionDates || [], habit.challengeDuration)
+                const streak = calculateHabitStreak(habit.completionDates || [], habit.challengeDuration ?? undefined)
                 const coins = calculateHabitCoins(habit.completionDates || [])
                 return (
                   <li key={habit.id} style={{ display: 'flex', alignItems: 'center', padding: '6px 8px', borderRadius: '10px', minHeight: isHabit ? '36px' : '44px' }}>

@@ -8,7 +8,8 @@ export default defineConfig(({ mode }) => {
   console.log('[Vite Config] Loaded env:', {
     DEEPGRAM_URL: env.VITE_DEEPGRAM_TOKEN_URL,
     GEMINI_URL: env.VITE_GEMINI_CMD_URL,
-    VOICE_ENABLED: env.VITE_VOICE_ENABLED
+    VOICE_ENABLED: env.VITE_VOICE_ENABLED,
+    VOICE_WS_URL: env.VITE_VOICE_WS_URL
   })
 
   return {
@@ -17,7 +18,8 @@ export default defineConfig(({ mode }) => {
     define: {
       '__VITE_DEEPGRAM_TOKEN_URL__': JSON.stringify(env.VITE_DEEPGRAM_TOKEN_URL),
       '__VITE_GEMINI_CMD_URL__': JSON.stringify(env.VITE_GEMINI_CMD_URL),
-      '__VITE_VOICE_ENABLED__': JSON.stringify(env.VITE_VOICE_ENABLED)
+      '__VITE_VOICE_ENABLED__': JSON.stringify(env.VITE_VOICE_ENABLED),
+      '__VITE_VOICE_WS_URL__': JSON.stringify(env.VITE_VOICE_WS_URL)
     }
   }
 })

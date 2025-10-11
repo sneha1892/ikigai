@@ -12,7 +12,17 @@ export const connectVoiceAssistant = (handleFunctionCall: (call: any) => void) =
   initAudioPlayback();
 
   return new Promise<void>((resolve, reject) => {
-    ws = new WebSocket('ws://localhost:3001');
+    // For Firebase hosting (no env vars on free plan)
+    const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
+    
+    const targetUrl = isProduction 
+      ? 'wss://ikigai-iz5b.onrender.com'  // Production voice server
+      : 'ws://localhost:3001';             // Local development
+
+    // targetUrl is always defined now
+
+    console.log('🔗 Connecting to voice server:', targetUrl);
+    ws = new WebSocket(targetUrl);
 
     ws.onopen = () => {
       console.log('✅ Connected to voice server');

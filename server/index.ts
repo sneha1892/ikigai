@@ -321,7 +321,17 @@ Ask for clarification if time, pillar, or frequency is missing when creating tas
   openaiWebSocket.on('close', cleanup);
 });
 
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`🚀 Voice proxy running on ws://localhost:${PORT}`);
+// Health check endpoint for mobile deployment
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    service: 'ikigai-voice-server'
+  });
+});
+
+const PORT = parseInt(process.env.PORT || '3001', 10);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Voice proxy running on port ${PORT}`);
+  console.log(`📱 Mobile-ready WebSocket: wss://${process.env.FLY_APP_NAME || 'localhost'}.fly.dev`);
 });
