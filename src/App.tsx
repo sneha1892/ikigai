@@ -13,11 +13,8 @@ import { useFirestore } from './hooks/useFirestore'
 import { notificationService } from './services/notificationService'
 import { toastService } from './services/toastService'
 import ToastContainer from './components/ToastContainer'
-// Voice UI removed
-// import VoiceInput from './components/VoiceInput'
-// import { aiService } from './services/aiService'
+import VoiceMicButton from './components/VoiceMicButton'
 import type { Task, QuizResults, Goal } from './types'
-// import type { VoiceResponse } from './types/ai'
 import './App.css'
 
 // Main authenticated app component
@@ -25,12 +22,67 @@ function AuthenticatedApp() {
   const { onboardingState, onboardingLoading, completeOnboarding, skipOnboarding } = useAuth()
   const { tasks, goals, routines, dailyModifications, userStats, loading, addTask, updateTask, deleteTask, toggleTask, addGoal, updateGoal, deleteGoal, addRoutine, updateRoutine, deleteRoutine, addModification } = useFirestore()
 
-  // Voice AI wiring removed
   const { colors } = useTheme()
   const [currentPage, setCurrentPage] = useState<'habits-tasks' | 'day-plan' | 'goals'>('day-plan') // Default to center page
   const [showSettings, setShowSettings] = useState(false)
   const [pointsAnimating, setPointsAnimating] = useState(false)
   const [previousPage, setPreviousPage] = useState<'habits-tasks' | 'day-plan' | 'goals'>('day-plan')
+
+  // Voice AI function call handler
+  const handleVoiceFunctionCall = async (functionCall: any) => {
+    console.log('🎤 Voice function call received:', functionCall);
+    
+    try {
+      switch (functionCall.name) {
+        case 'createTask':
+          const taskData = functionCall.arguments;
+          // Default icons based on pillar
+          const defaultIcons: Record<string, string> = {
+            mental: '🧘',
+            physical: '💪',
+            social: '❤️',
+            intellectual: '🎨'
+          };
+          
+          await handleAddTask({
+            name: taskData.name,
+            pillar: taskData.pillar,
+            icon: defaultIcons[taskData.pillar] || '✨',
+            reminderTime: taskData.startTime || undefined,
+            hasReminder: Boolean(taskData.startTime),
+            duration: taskData.duration || 30,
+            challengeDuration: taskData.challengeDuration || 7,
+            repeatFrequency: taskData.repeatFrequency || 'daily',
+            customDays: taskData.customDays || undefined,
+          });
+          toastService.success('Task created!', `"${taskData.name}" has been added via voice command.`);
+          break;
+          
+        case 'completeTask':
+          const taskId = functionCall.arguments.taskId;
+          await handleToggleTask(taskId);
+          toastService.success('Task completed!', 'Great job!');
+          break;
+          
+        case 'deleteTask':
+          const taskName = functionCall.arguments.name;
+          const taskToDelete = tasks.find(t => t.name.toLowerCase() === taskName.toLowerCase());
+          if (taskToDelete) {
+            await handleDeleteTask(taskToDelete.id);
+            toastService.success('Task deleted!', `"${taskName}" has been removed.`);
+          } else {
+            toastService.error('Task not found', `Could not find task "${taskName}"`);
+          }
+          break;
+          
+        default:
+          console.warn('Unknown function call:', functionCall.name);
+      }
+    } catch (error) {
+      console.error('Error handling voice command:', error);
+      toastService.error('Voice command failed', 'Please try again.');
+    }
+  }
 
   // Setup notifications when tasks change
   useEffect(() => {
@@ -314,7 +366,8 @@ function AuthenticatedApp() {
         currentPage={currentPage} 
         onPageChange={setCurrentPage}
       />
-        <ToastContainer />
+      <VoiceMicButton onFunctionCall={handleVoiceFunctionCall} />
+      <ToastContainer />
       </div>
     )
   }

@@ -32,8 +32,14 @@ export const connectVoiceAssistant = (handleFunctionCall: (call: any) => void) =
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       
+      // 🔍 DEBUG: Log all message types
+      if (!data.type.includes('audio.delta')) {
+        console.log('📨 Voice message:', data.type);
+      }
+      
       // Handle audio chunks from OpenAI
       if (data.type === 'response.audio.delta' && data.delta) {
+        console.log('🔊 Playing audio chunk, size:', data.delta.length);
         playAudioChunk(data.delta);
       }
       // Handle function calls from OpenAI
@@ -43,11 +49,31 @@ export const connectVoiceAssistant = (handleFunctionCall: (call: any) => void) =
             ? JSON.parse(data.arguments) 
             : data.arguments;
           
+          console.log('🔧 Function call:', data.name, 'with call_id:', data.call_id);
+          
+          // Execute the function locally
           onFunctionCall?.({
             name: data.name,
             arguments: args,
             callId: data.call_id,
           });
+          
+          // 🔥 IMPORTANT: Send function output back to OpenAI to trigger audio response
+          if (ws?.readyState === WebSocket.OPEN && data.call_id) {
+            const functionOutput = {
+              type: 'conversation.item.create',
+              item: {
+                type: 'function_call_output',
+                call_id: data.call_id,
+                output: JSON.stringify({ success: true, message: `Task ${data.name} completed successfully` })
+              }
+            };
+            console.log('📤 Sending function output back to OpenAI');
+            ws.send(JSON.stringify(functionOutput));
+            
+            // Trigger a new response to get audio feedback
+            ws.send(JSON.stringify({ type: 'response.create' }));
+          }
         } catch (err) {
           console.error('Failed to parse function call arguments:', err);
         }
@@ -67,7 +93,11 @@ export const connectVoiceAssistant = (handleFunctionCall: (call: any) => void) =
       }
       // Handle response done
       else if (data.type === 'response.audio.done') {
-        console.log('🔊 Audio response completed');
+        console.log('✅ Audio response completed');
+      }
+      // Handle response output item added
+      else if (data.type === 'response.output_item.added') {
+        console.log('📤 Output item added:', data.item?.type);
       }
     };
 
