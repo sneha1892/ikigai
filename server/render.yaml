@@ -1,0 +1,14 @@
+# Render.com configuration for free hosting
+services:
+  - type: web
+    name: ikigai-voice-server
+    env: node
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_API_KEY
+        sync: false  # Set this in Render dashboard
+    healthCheckPath: /health
+    plan: free

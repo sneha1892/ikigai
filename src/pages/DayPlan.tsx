@@ -8,9 +8,7 @@ import RoutineModal from '../components/RoutineModal'
 import AddFromLibraryModal from '../components/AddFromLibraryModal'
 import type { Task, UserStats, Goal, Routine, DailyModification } from '../types'
 import { nanoid } from 'nanoid'
-import { minutesTo24Hour, extractOriginalTaskId } from '../utils/dateUtils'
-import VoiceMicButton from '../components/VoiceMicButton';
-import { toastService } from '../services/toastService';
+import { minutesTo24Hour, timeToMinutes, minutesToTime, formatDisplayTime, convertTo24Hour } from '../utils/dateUtils'
 
 interface DayPlanProps {
   tasks: Task[]
@@ -63,7 +61,6 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
   const [dayStartTime, setDayStartTime] = useState<string>('07:30')
   const [hoveredFreeSlotId, setHoveredFreeSlotId] = useState<string | null>(null)
   const [showAddFromLibrary, setShowAddFromLibrary] = useState(false)
-  const [unscheduledExpanded, setUnscheduledExpanded] = useState(true)
 
   const isFutureDate = (date: Date): boolean => {
     const today = new Date();
@@ -74,70 +71,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
   };
   const isFuture = isFutureDate(selectedDate)
 
-    // Voice assistant handler
-  // Voice Assistant Handler — uses DayPlan's props, not useFirestore
-  const handleVoiceFunctionCall = async (call: any) => {
-    try {
-      if (call.name === 'createTask') {
-        const { name, pillar, startTime, duration = 30, repeatFrequency = 'daily', customDays, challengeDuration } = call.arguments;
 
-        // Calculate endTime if startTime is provided
-        let endTime: string | undefined;
-        if (startTime && duration) {
-          const [hours, minutes] = startTime.split(':').map(Number);
-          const startDate = new Date();
-          startDate.setHours(hours, minutes, 0, 0);
-          const endDate = new Date(startDate.getTime() + duration * 60000);
-          endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
-        }
-
-        const newTask: Omit<Task, 'id' | 'completed' | 'createdAt'> = {
-          name,
-          pillar,
-          icon: 'circle',
-          completed: false,
-          hasReminder: startTime ? true : false, // Set hasReminder if time provided
-          repeatFrequency,
-          ...(customDays && { customDays }),
-          duration,
-          ...(startTime && { startTime }),
-          ...(endTime && { endTime }),
-          ...(startTime && { reminderTime: startTime }), // 🔥 KEY FIX: Set reminderTime for day plan
-          ...(challengeDuration && { challengeDuration }), // AI can specify challenge
-          // Default challenge duration for daily/custom habits
-          ...(!challengeDuration && repeatFrequency !== 'once' && { challengeDuration: 7 }),
-        };
-
-        onAddTask(newTask); // ✅ Use prop, not useFirestore
-        toastService.success(`✅ Added: ${name}${startTime ? ` at ${startTime}` : ''}`);
-      } 
-      else if (call.name === 'completeTask') {
-        // For habits, completion is date-based
-        const taskId = call.arguments.taskId;
-        const today = selectedDate.toISOString().split('T')[0]; // Use selected date, not just "today"
-        onToggleTask(taskId, today); // ✅ Use prop
-        toastService.success('✅ Completed!');
-      }
-      else if (call.name === 'deleteTask') {
-        // Find task by name (case-insensitive)
-        const taskName = call.arguments.name.toLowerCase();
-        const taskToDelete = tasks.find(t => t.name.toLowerCase().includes(taskName));
-        
-        if (taskToDelete) {
-          onDeleteTask(taskToDelete.id);
-          toastService.success(`🗑️ Deleted: ${taskToDelete.name}`);
-        } else {
-          toastService.error('Task not found', `Could not find a task named "${call.arguments.name}"`);
-        }
-      }
-      else if (call.name === 'rescheduleTask') {
-        toastService.success('🔄 Rescheduling (coming soon)');
-      }
-    } catch (err) {
-      console.error('Voice action failed:', err);
-      toastService.error('Voice command failed', 'Please try again.');
-    }
-  };
   
   // Click outside to close menus
   useEffect(() => {
@@ -312,47 +246,6 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
   // Calendar helpers
   // Note: Previously had a generic getDayId helper; in this compact version we inline where needed.
 
-  // Time helpers
-  const timeToMinutes = (timeStr: string): number => {
-    // Supports "HH:MM" and "H:MM AM/PM"
-    if (!timeStr) return 0
-    if (timeStr.includes(' ')) {
-      const [time, period] = timeStr.split(' ')
-      const [h, m] = time.split(':').map(Number)
-      let hh = h
-      if (period === 'PM' && h !== 12) hh += 12
-      if (period === 'AM' && h === 12) hh = 0
-      return hh * 60 + m
-    }
-    const [hours, minutes] = timeStr.split(':').map(Number)
-    return (hours || 0) * 60 + (minutes || 0)
-  }
-
-  const minutesToTime = (minutes: number): string => {
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    const period = hours >= 12 ? 'PM' : 'AM'
-    const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
-    return `${displayHours}:${mins.toString().padStart(2, '0')} ${period}`
-  }
-
-  const convertTo24Hour = (displayTime: string): string => {
-    const [time, period] = displayTime.split(' ')
-    const [hours, minutes] = time.split(':').map(Number)
-    let hour24 = hours
-    if (period === 'PM' && hours !== 12) hour24 += 12
-    if (period === 'AM' && hours === 12) hour24 = 0
-    const result = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
-    return result
-  }
-
-  const formatDisplayTime = (time24: string): string => {
-    const [hStr, mStr] = time24.split(':')
-    const h = parseInt(hStr, 10)
-    const period = h >= 12 ? 'PM' : 'AM'
-    const displayHour = h % 12 === 0 ? 12 : h % 12
-    return `${displayHour}:${mStr} ${period}`
-  }
 
   // Build timeline for selected day
   interface TimelineEvent { id: string; type: 'task' | 'routine' | 'freeTime' | 'dayEnd'; 
@@ -366,7 +259,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
   }
   const timelineEvents = useMemo(() => {
     const events: TimelineEvent[] = []
-    const getTaskDuration = (task: Task): number => task.duration !== undefined ? task.duration : 30
+    const getTaskDuration = (task: Task): number => (task.duration !== undefined && task.duration !== null) ? task.duration : 30
     const iso = selectedDate.toISOString().split('T')[0]
     const selectedDayId = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][selectedDate.getDay()]
 
@@ -473,14 +366,19 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
       const startMin = timeToMinutes(routine.startTime)
       const startDisp = new Date(`2000-01-01T${routine.startTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
       
-    // Determine end time: prefer modification.endTime (clipped), then routine.endTime, then calculate
-      let endTimeStr: string;
-      if (routine.endTime) {
-        endTimeStr = formatDisplayTime(routine.endTime);
+      // Determine intended duration (use stored durationMinutes if available)
+      let intendedDurationMinutes: number;
+      if (routine.durationMinutes !== undefined) {
+        intendedDurationMinutes = routine.durationMinutes;
+      } else if (routine.endTime) {
+        const endMin = timeToMinutes(routine.endTime);
+        intendedDurationMinutes = Math.max(5, endMin - startMin);
       } else {
-        const total = allRoutineItems.reduce((s, item) => s + (item.duration || 30), 0);
-        endTimeStr = minutesToTime(startMin + total);
-}
+        intendedDurationMinutes = allRoutineItems.reduce((s, item) => s + (item.duration || 30), 0);
+      }
+
+
+    const endTimeStr = minutesToTime(startMin + intendedDurationMinutes);
       
       events.push({
         id: `routine-${routine.id}`,
@@ -527,14 +425,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
 
     const allTasksForDay = [...scheduledTasks, ...addedTasks]
 
-    const sortedTasks = allTasksForDay.sort((a, b) => {
-      // First sort by completion status (uncompleted first)
-      if (a.completed !== b.completed) {
-        return a.completed ? 1 : -1
-      }
-      // Then by time
-      return timeToMinutes(a.reminderTime!) - timeToMinutes(b.reminderTime!)
-    })
+    const sortedTasks = allTasksForDay.sort((a, b) => timeToMinutes(a.reminderTime!) - timeToMinutes(b.reminderTime!))
     sortedTasks.forEach((task, idx) => {
       // For habits, check completion based on selected date
       let taskForDay: Task = task;
@@ -1002,18 +893,31 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                           }
                         }}
                         onEdit={handleEditTask} 
-                        onDelete={(taskId) => {
-                          const originalId = extractOriginalTaskId(taskId, dailyModifications);
-                          onDeleteTask(originalId);
-                        }}
+                        onDelete={onDeleteTask} 
                         onSkip={(taskId) => {
                           if (!onAddModification) return;
 
-                          const originalId = extractOriginalTaskId(taskId, dailyModifications);
-                          
-                          // For added instances, we need to find the modification to get instanceId
-                          const modification = dailyModifications.find(m => m.instanceId === taskId);
-                          const instanceId = modification?.instanceId;
+                          let originalId = taskId;
+                          let instanceId: string | undefined;
+
+                          // Handle unscheduled (shouldn't happen here, but safe)
+                          if (taskId.startsWith('unsched-')) {
+                            originalId = taskId.split('-')[1];
+                          }
+                          // Handle mod-prefixed fallback IDs
+                          else if (taskId.startsWith('mod-')) {
+                            const parts = taskId.split('-');
+                            originalId = parts[parts.length - 1];
+                          }
+                          // Handle raw nanoid instance IDs (most common for added tasks)
+                          else {
+                            const mod = dailyModifications.find(m => m.instanceId === taskId);
+                            if (mod) {
+                              originalId = mod.itemId;
+                              instanceId = mod.instanceId;
+                            }
+                            // else: assume it's a real scheduled task ID → originalId = taskId
+                          }
 
                           onAddModification({
                             date: selectedDate.toISOString().split('T')[0],
@@ -1022,7 +926,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                             ...(instanceId && { instanceId }), // only include if it exists
                             modification: { status: 'skipped' }
                           });
-                        }}
+}}
                         showTime={false} 
                         hideTypePill 
                         variant="flat"
@@ -1038,38 +942,11 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                           padding: '12px', 
                           border: `1px solid ${colors.borderSubtle}` 
                         }}>
-                          <div 
-                            style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'space-between',
-                              cursor: 'pointer',
-                              marginBottom: unscheduledExpanded ? 8 : 0
-                            }}
-                            onClick={() => setUnscheduledExpanded(!unscheduledExpanded)}
-                          >
-                            <div style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary }}>
-                              Unscheduled Tasks ({event.unscheduledHabits.length})
-                            </div>
-                            <svg 
-                              width="16" 
-                              height="16" 
-                              viewBox="0 0 24 24" 
-                              fill="none" 
-                              stroke="currentColor" 
-                              strokeWidth="2"
-                              style={{
-                                transform: unscheduledExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                                transition: 'transform 0.2s ease',
-                                color: colors.text.secondary
-                              }}
-                            >
-                              <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
+                          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: colors.text.primary }}>
+                            Unscheduled Tasks
                           </div>
-                          {unscheduledExpanded && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                              {event.unscheduledHabits.map(habit => (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {event.unscheduledHabits.map(habit => (
                               <TaskItem
                                 key={habit.id}
                                 task={habit}
@@ -1096,12 +973,11 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                                   onToggleTask(originalId, dateStr);
                                 }}
                                 onEdit={handleEditTask}
-                                onDelete={(taskId) => {
-                                  const originalId = extractOriginalTaskId(taskId, dailyModifications);
-                                  onDeleteTask(originalId);
-                                }}
+                                onDelete={onDeleteTask}
                                 onSkip={(taskId) => {
-                                  const originalId = extractOriginalTaskId(taskId, dailyModifications);
+                                  const originalId = taskId.startsWith('unsched-')
+                                    ? taskId.split('-')[1]
+                                    : taskId;
                                   if (onAddModification) {
                                     onAddModification({
                                       date: selectedDate.toISOString().split('T')[0],
@@ -1116,8 +992,7 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
                                 variant="flat"
                               />
                             ))}
-                            </div>
-                          )}
+                          </div>
                         </div>
                   ) :(
                     <div
@@ -1202,7 +1077,6 @@ function DayPlan({ tasks, goals = [], routines = [], dailyModifications = [], on
         )}
       </div>
 
-      <VoiceMicButton onFunctionCall={handleVoiceFunctionCall} />
       {/* FAB with speed-dial */}
       <div ref={speedDialRef} style={{ position: 'fixed', bottom: '100px', right: '20px', zIndex: 1000 }}>
         {speedDialOpen && (
